@@ -1,15 +1,20 @@
 import React from 'react';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-
-const data = [
-  { name: 'Lead', value: 18 },
-  { name: 'Qualified', value: 12 },
-  { name: 'Proposal', value: 8 },
-  { name: 'Negotiation', value: 4 },
-  { name: 'Closed', value: 3 },
-];
+import { useAppState } from '../StateContext';
 
 const Dashboard: React.FC = () => {
+  const { deals, tasks } = useAppState();
+
+  const pipelineValue = deals.reduce((sum, deal) => sum + deal.value, 0);
+  const formattedPipelineValue = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(pipelineValue);
+
+  const chartData = [
+    { name: 'Nuevo', value: deals.filter(d => d.stage === 'Nuevo').length },
+    { name: 'Cotización', value: deals.filter(d => d.stage === 'Cotización').length },
+    { name: 'Negociación', value: deals.filter(d => d.stage === 'Negociación').length },
+    { name: 'Ganado', value: deals.filter(d => d.stage === 'Ganado').length },
+  ];
+
   return (
     <main className="flex-1 flex flex-col h-full overflow-y-auto relative scroll-smooth bg-background-light dark:bg-background-dark p-6 md:p-10">
       {/* Header */}
@@ -29,8 +34,8 @@ const Dashboard: React.FC = () => {
         {[
           { label: 'Active Chats', value: '24', change: '+12%', icon: 'trending_up', color: 'text-green-600', bg: 'bg-green-50 dark:bg-green-900/20' },
           { label: 'Avg. AI Reply Time', value: '2m 14s', change: '-5%', icon: 'bolt', color: 'text-green-600', bg: 'bg-green-50 dark:bg-green-900/20' },
-          { label: 'Pipeline Value', value: '$12,450', change: '+8%', icon: 'attach_money', color: 'text-primary', bg: 'bg-blue-50 dark:bg-blue-900/20' },
-          { label: 'Tasks Due', value: '5', change: 'Due today', icon: 'priority_high', color: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-900/20', changeColor: 'text-orange-600' }
+          { label: 'Pipeline Value', value: formattedPipelineValue, change: '+8%', icon: 'attach_money', color: 'text-primary', bg: 'bg-blue-50 dark:bg-blue-900/20' },
+          { label: 'Tasks Due', value: tasks.length.toString(), change: 'Due today', icon: 'priority_high', color: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-900/20', changeColor: 'text-orange-600' }
         ].map((stat, idx) => (
           <div key={idx} className="flex flex-col gap-2 rounded-xl p-5 bg-white dark:bg-[#1a202c] border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex justify-between items-start">
@@ -57,7 +62,7 @@ const Dashboard: React.FC = () => {
             <div className="flex justify-between items-end mb-6">
               <div>
                 <p className="text-slate-500 dark:text-slate-400 text-sm mb-1">Total Active Deals</p>
-                <p className="text-slate-900 dark:text-white text-3xl font-bold">45</p>
+                <p className="text-slate-900 dark:text-white text-3xl font-bold">{deals.length}</p>
               </div>
               <div className="flex gap-2 items-center">
                 <span className="size-3 rounded-full bg-primary"></span>
@@ -66,21 +71,21 @@ const Dashboard: React.FC = () => {
             </div>
             <div className="w-full h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data}>
-                  <XAxis 
-                    dataKey="name" 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fill: '#94a3b8', fontSize: 12 }} 
+                <BarChart data={chartData}>
+                  <XAxis
+                    dataKey="name"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#94a3b8', fontSize: 12 }}
                     dy={10}
                   />
-                  <Tooltip 
-                    cursor={{fill: 'transparent'}}
+                  <Tooltip
+                    cursor={{ fill: 'transparent' }}
                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                   />
                   <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={40}>
-                    {data.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.name === 'Closed' ? '#22c55e' : '#135bec'} />
+                    {chartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.name === 'Ganado' || entry.name === 'Closed' ? '#22c55e' : '#135bec'} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -114,7 +119,7 @@ const Dashboard: React.FC = () => {
                     </div>
                   </div>
                   <div>
-                    <p className="text-slate-900 dark:text-white text-sm font-semibold">Sarah Miller</p>
+                    <p className="text-slate-900 dark:text-white text-sm font-semibold">Sarah Jenkins</p>
                     <p className="text-slate-500 dark:text-slate-400 text-xs">Stalled • Proposal Sent</p>
                   </div>
                 </div>
@@ -131,7 +136,7 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
             </div>
-            
+
             <hr className="border-slate-100 dark:border-slate-800 mx-3" />
 
             {/* Item 2 */}

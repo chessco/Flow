@@ -5,11 +5,12 @@ export interface Deal {
   title: string;
   value: number;
   contactName: string;
-  stage: 'lead' | 'qualified' | 'proposal' | 'negotiation' | 'closed';
+  stage: 'Nuevo' | 'Contactado' | 'Calificado' | 'Cotización' | 'Negociación' | 'Ganado';
   probability: number;
   avatar: string;
   date: string;
 }
+
 
 export interface Task {
   id: string;
