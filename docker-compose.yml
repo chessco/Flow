@@ -1,0 +1,38 @@
+services:
+  db:
+    image: mysql:8
+    container_name: pitayacode_db
+    restart: always
+    environment:
+      MYSQL_DATABASE: flow_db
+      MYSQL_ROOT_PASSWORD: root_password_prod
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  api:
+    build:
+      context: .
+      dockerfile: ./apps/server/Dockerfile
+    container_name: pitayacode_api
+    environment:
+      DATABASE_URL: "mysql://root:root_password_prod@db:3306/flow_db"
+      JWT_SECRET: "pitaya_secret_prod_key"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
+
+  web:
+    build:
+      context: .
+      dockerfile: ./apps/web/Dockerfile
+    container_name: pitayacode_web
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+
+volumes:
+  mysql_data:

@@ -1,0 +1,130 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id            String   @id @default(uuid())
+  name          String
+  slug          String   @unique
+  logoUrl       String?
+  whatsappConfig Json?   // Credenciales de Meta API
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  users         User[]
+  contacts      Contact[]
+  pipelines     Pipeline[]
+  conversations Conversation[]
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   @default("AGENT") // ADMIN, MANAGER, AGENT
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+model Contact {
+  id        String   @id @default(uuid())
+  name      String
+  phone     String   // Formato internacional
+  email     String?
+  avatar    String?
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  conversations Conversation[]
+  cards         Card[]
+
+  @@unique([tenantId, phone])
+  @@index([tenantId])
+}
+
+model Pipeline {
+  id        String   @id @default(uuid())
+  name      String
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  stages    Stage[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+model Stage {
+  id         String   @id @default(uuid())
+  name       String
+  order      Int
+  pipelineId String
+  pipeline   Pipeline @relation(fields: [pipelineId], references: [id])
+  cards      Card[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([pipelineId])
+}
+
+model Card {
+  id        String   @id @default(uuid())
+  title     String
+  value     Decimal  @default(0) @db.Decimal(15, 2)
+  contactId String
+  contact   Contact  @relation(fields: [contactId], references: [id])
+  stageId   String
+  stage     Stage    @relation(fields: [stageId], references: [id])
+  tenantId  String
+  priority  String   @default("MEDIUM") // LOW, MEDIUM, HIGH
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, stageId])
+}
+
+model Conversation {
+  id            String   @id @default(uuid())
+  contactId     String
+  contact       Contact  @relation(fields: [contactId], references: [id])
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  lastMessageAt DateTime @default(now())
+  status        String   @default("OPEN") // OPEN, PENDING, CLOSED
+  messages      Message[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([tenantId, contactId])
+}
+
+model Message {
+  id             String   @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  senderType     String   // AGENT, CONTACT, SYSTEM, AI
+  senderId       String?  // ID del User o null si es Contact
+  content        String   @db.Text
+  type           String   @default("TEXT") // TEXT, IMAGE, DOCUMENT, AUDIO
+  status         String   @default("SENT") // SENT, DELIVERED, READ, FAILED
+  providerId     String?  // ID de WhatsApp Cloud API
+  isAI           Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  @@index([conversationId])
+}
