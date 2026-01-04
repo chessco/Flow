@@ -17,10 +17,20 @@ export class TenantsService {
         return tenant;
     }
 
-    async updateWhatsappConfig(id: string, config: any) {
-        return this.prisma.tenant.update({
-            where: { id },
-            data: { whatsappConfig: config }
+    async updateWhatsappAccount(tenantId: string, data: { wabaId: string, accessToken: string, name?: string }) {
+        return this.prisma.whatsAppAccount.upsert({
+            where: { wabaId: data.wabaId },
+            update: {
+                accessToken: data.accessToken,
+                name: data.name,
+                tenantId: tenantId
+            },
+            create: {
+                wabaId: data.wabaId,
+                accessToken: data.accessToken,
+                name: data.name,
+                tenantId: tenantId
+            }
         });
     }
 }

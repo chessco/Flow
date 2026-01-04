@@ -13,7 +13,7 @@ export class KanbanService {
                     orderBy: { order: 'asc' },
                     include: {
                         cards: {
-                            include: { contact: true }
+                            include: { contact: true, lead: true }
                         }
                     }
                 }

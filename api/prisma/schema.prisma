@@ -15,14 +15,15 @@ model Tenant {
   name          String
   slug          String   @unique
   logoUrl       String?
-  whatsappConfig Json?   // Credenciales de Meta API
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   users         User[]
   contacts      Contact[]
+  leads         Lead[]
   pipelines     Pipeline[]
   conversations Conversation[]
+  whatsappAccounts WhatsAppAccount[]
 }
 
 model User {
@@ -57,6 +58,50 @@ model Contact {
   @@index([tenantId])
 }
 
+model Lead {
+  id        String   @id @default(uuid())
+  name      String?
+  phone     String
+  email     String?
+  status    String   @default("NEW") // NEW, CONTACTED, QUALIFIED, LOST
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  conversations Conversation[]
+  cards         Card[]
+
+  @@unique([tenantId, phone])
+  @@index([tenantId])
+}
+
+model WhatsAppAccount {
+  id           String   @id @default(uuid())
+  wabaId       String   @unique
+  name         String?
+  accessToken  String   @db.Text
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  phoneNumbers WhatsAppPhoneNumber[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([tenantId])
+}
+
+model WhatsAppPhoneNumber {
+  id                 String   @id @default(uuid())
+  phoneNumberId      String   @unique
+  displayPhoneNumber String
+  whatsappAccountId  String
+  whatsappAccount    WhatsAppAccount @relation(fields: [whatsappAccountId], references: [id])
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([whatsappAccountId])
+}
+
 model Pipeline {
   id        String   @id @default(uuid())
   name      String
@@ -86,8 +131,10 @@ model Card {
   id        String   @id @default(uuid())
   title     String
   value     Decimal  @default(0) @db.Decimal(15, 2)
-  contactId String
-  contact   Contact  @relation(fields: [contactId], references: [id])
+  contactId String?
+  contact   Contact?  @relation(fields: [contactId], references: [id])
+  leadId    String?
+  lead      Lead?     @relation(fields: [leadId], references: [id])
   stageId   String
   stage     Stage    @relation(fields: [stageId], references: [id])
   tenantId  String
@@ -100,8 +147,10 @@ model Card {
 
 model Conversation {
   id            String   @id @default(uuid())
-  contactId     String
-  contact       Contact  @relation(fields: [contactId], references: [id])
+  contactId     String?
+  contact       Contact? @relation(fields: [contactId], references: [id])
+  leadId        String?
+  lead          Lead?    @relation(fields: [leadId], references: [id])
   tenantId      String
   tenant        Tenant   @relation(fields: [tenantId], references: [id])
   lastMessageAt DateTime @default(now())
@@ -110,7 +159,7 @@ model Conversation {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  @@index([tenantId, contactId])
+  @@index([tenantId])
 }
 
 model Message {
@@ -118,11 +167,11 @@ model Message {
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id])
   senderType     String   // AGENT, CONTACT, SYSTEM, AI
-  senderId       String?  // ID del User o null si es Contact
+  senderId       String?  // ID del User o null si es Contact/Lead
   content        String   @db.Text
   type           String   @default("TEXT") // TEXT, IMAGE, DOCUMENT, AUDIO
   status         String   @default("SENT") // SENT, DELIVERED, READ, FAILED
-  providerId     String?  // ID de WhatsApp Cloud API
+  providerId     String?  // ID de WhatsApp Cloud API (wamid)
   isAI           Boolean  @default(false)
   createdAt      DateTime @default(now())
 

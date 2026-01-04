@@ -4,6 +4,7 @@ export const mockContacts: Contact[] = [
     {
         id: 'c1',
         name: 'Sarah Jenkins',
+        phone: '+1234567890',
         role: 'VP of Operations',
         company: 'TechFlow',
         avatar: 'https://i.pravatar.cc/150?u=sarahjenkins',
@@ -13,6 +14,7 @@ export const mockContacts: Contact[] = [
     {
         id: 'c2',
         name: 'John Doe',
+        phone: '+1098765432',
         role: 'IT Manager',
         company: 'Enterprise Corp',
         avatar: 'https://i.pravatar.cc/150?u=john',
@@ -22,6 +24,7 @@ export const mockContacts: Contact[] = [
     {
         id: 'c3',
         name: 'Maria Garcia',
+        phone: '+1122334455',
         role: 'Director of Marketing',
         company: 'Creative Solutions',
         avatar: 'https://i.pravatar.cc/150?u=maria',
@@ -31,6 +34,7 @@ export const mockContacts: Contact[] = [
     {
         id: 'c4',
         name: 'David Chen',
+        phone: '+1555666777',
         role: 'Software Architect',
         company: 'ScaleUp',
         avatar: 'https://i.pravatar.cc/150?u=david',

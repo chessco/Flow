@@ -26,6 +26,7 @@ export interface Task {
 export interface Contact {
   id: string;
   name: string;
+  phone: string;
   role: string;
   company: string;
   avatar: string;
@@ -42,4 +43,5 @@ export interface Message {
   fileName?: string;
   fileSize?: string;
   isAI?: boolean;
+  createdAt?: string;
 }
