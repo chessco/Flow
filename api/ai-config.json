@@ -1,0 +1,8 @@
+{
+  "apiKey": "6fa45d7b3ab2d4e0bee09e190ef6db2f:5dc38de5a5486780a548b88e895ee437da7d5f6e185883c2b0952ce716386628f51a472d0c8bb1",
+  "provider": "GEMINI",
+  "mode": "TENANT",
+  "model": "gemini-3-flash-preview",
+  "temperature": 0.7,
+  "maxTokens": 1024
+}

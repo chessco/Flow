@@ -2,6 +2,7 @@ import { Injectable, Logger, InternalServerErrorException, ForbiddenException } 
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { AiService } from '../ai/ai.service';
 import { SendMessageDto, MessageType } from './dto/send-message.dto';
 import { firstValueFrom } from 'rxjs';
 
@@ -14,6 +15,7 @@ export class WhatsappService {
         private prisma: PrismaService,
         private httpService: HttpService,
         private configService: ConfigService,
+        private aiService: AiService,
     ) { }
 
     /**
@@ -38,16 +40,15 @@ export class WhatsappService {
 
         const whatsappAccount = await this.prisma.whatsAppAccount.findFirst({
             where: { tenantId },
-            include: { phoneNumbers: true },
+            include: { phoneNumbers: true }
         });
 
-        if (whatsappAccount && whatsappAccount.phoneNumbers.length > 0) {
+        if (whatsappAccount?.accessToken) {
             accessToken = whatsappAccount.accessToken;
-            phoneNumberId = whatsappAccount.phoneNumbers[0].phoneNumberId;
+            if (whatsappAccount.phoneNumbers?.[0]) {
+                phoneNumberId = whatsappAccount.phoneNumbers[0].phoneNumberId;
+            }
         } else {
-            // Fallback to env-based credentials for transition/dev
-            accessToken = this.configService.get<string>('WHATSAPP_ACCESS_TOKEN');
-            phoneNumberId = this.configService.get<string>('WHATSAPP_PHONE_NUMBER_ID');
             this.logger.warn(`No WhatsApp account found in DB for tenant ${tenantId}. Falling back to ENV variables.`);
         }
 
@@ -135,6 +136,9 @@ export class WhatsappService {
                 data: { lastMessageAt: new Date() }
             });
 
+            // 4. Ensure card is in "Contactado" stage
+            await this.ensureContactedStage(tenantId, conversation.id);
+
             return message;
         } catch (error) {
             const errorData = error.response?.data;
@@ -170,6 +174,7 @@ export class WhatsappService {
         // Handle Incoming Messages
         if (value.messages && value.messages.length > 0) {
             const tenantId = await this.getTenantIdByPhoneId(value.metadata.phone_number_id);
+            this.logger.log(`RESOLVED TENANT_ID: ${tenantId} for phoneId: ${value.metadata.phone_number_id}`);
             if (!tenantId) {
                 this.logger.warn(`Received message for unknown phone number ID: ${value.metadata.phone_number_id}`);
                 return;
@@ -186,6 +191,13 @@ export class WhatsappService {
 
                     if (msg.type === 'text') {
                         content = msg.text.body;
+                    } else if (msg.type === 'image') {
+                        const mediaId = msg.image.id;
+                        content = msg.image.caption || `[IMAGE Media Received]`;
+                        const mediaUrl = `/whatsapp/media/${mediaId}`; // Internal proxy link
+                        type = 'IMAGE';
+                        // We will save this mediaUrl in the next step
+                        (msg as any).mediaUrl = mediaUrl;
                     } else {
                         content = `[${msg.type.toUpperCase()} Media Received]`;
                         type = msg.type.toUpperCase();
@@ -224,10 +236,14 @@ export class WhatsappService {
 
                         // Auto-create Kanban Card
                         try {
-                            const pipeline = await this.prisma.pipeline.findFirst({ where: { tenantId } });
+                            const pipeline = await this.prisma.pipeline.findFirst({
+                                where: { tenantId },
+                                orderBy: { createdAt: 'asc' } // Be consistent
+                            });
                             if (pipeline) {
                                 const newStage = await this.prisma.stage.findFirst({
-                                    where: { pipelineId: pipeline.id, order: 0 } // Assuming 0 is 'Nuevo'
+                                    where: { pipelineId: pipeline.id },
+                                    orderBy: { order: 'asc' }
                                 });
                                 if (newStage) {
                                     await this.prisma.card.create({
@@ -257,14 +273,51 @@ export class WhatsappService {
                             type: type,
                             status: 'READ',
                             providerId: wamid,
+                            mediaUrl: (msg as any).mediaUrl || null,
                         }
                     });
 
                     // Update Conversation
-                    await this.prisma.conversation.update({
+                    const updatedConversation = await this.prisma.conversation.update({
                         where: { id: conversation.id },
-                        data: { lastMessageAt: new Date() }
+                        data: {
+                            lastMessageAt: new Date(),
+                            status: 'OPEN'
+                        }
                     });
+
+                    // AI Autonomous Response Logic
+                    if (updatedConversation.aiManaged) {
+                        this.logger.log(`Conversation ${conversation.id} is AI managed. Generating response...`);
+                        const aiResponse = await this.aiService.generateAutonomousResponse(tenantId, conversation.id);
+
+                        if (aiResponse) {
+                            if (aiResponse.handoverRequired) {
+                                this.logger.log(`Handover required for conversation ${conversation.id}. Reason: ${aiResponse.handoverReason}`);
+
+                                // Create Alert
+                                await this.prisma.handoverAlert.create({
+                                    data: {
+                                        conversationId: conversation.id,
+                                        tenantId,
+                                        reason: aiResponse.handoverReason || 'AI requested human intervention',
+                                        status: 'PENDING'
+                                    }
+                                });
+
+                                // Disable AI Autonomous mode
+                                await this.prisma.conversation.update({
+                                    where: { id: conversation.id },
+                                    data: { aiManaged: false }
+                                });
+                            }
+
+                            // Send AI response to WhatsApp if content exists
+                            if (aiResponse.content) {
+                                await this.sendInternalAiMessage(tenantId, conversation.id, from, aiResponse.content);
+                            }
+                        }
+                    }
                 } catch (msgError) {
                     this.logger.error(`Error processing individual message: ${msgError.message}`);
                 }
@@ -276,7 +329,7 @@ export class WhatsappService {
      * Fetches all conversations for a tenant.
      */
     async getConversations(tenantId: string) {
-        return this.prisma.conversation.findMany({
+        const conversations = await this.prisma.conversation.findMany({
             where: { tenantId },
             include: {
                 contact: true,
@@ -288,6 +341,78 @@ export class WhatsappService {
             },
             orderBy: { lastMessageAt: 'desc' }
         });
+
+        // Deduplicate in memory by contactId or leadId
+        // We keep the first occurrence because they are already sorted by lastMessageAt desc
+        const seenPeople = new Set<string>();
+        const uniqueConversations = conversations.filter(c => {
+            const personId = c.contactId || c.leadId;
+            if (!personId || seenPeople.has(personId)) return false;
+            seenPeople.add(personId);
+            return true;
+        });
+
+        return uniqueConversations;
+    }
+
+    async getSettings(tenantId: string) {
+        const account = await this.prisma.whatsAppAccount.findFirst({
+            where: { tenantId },
+            include: { phoneNumbers: true }
+        });
+
+        return {
+            accessToken: account?.accessToken || '',
+            phoneNumberId: account?.phoneNumbers?.[0]?.phoneNumberId || '',
+            wabaId: account?.wabaId || '',
+            verifyToken: this.configService.get('WHATSAPP_VERIFY_TOKEN')
+        };
+    }
+
+    async updateSettings(tenantId: string, dto: any) {
+        let account = await this.prisma.whatsAppAccount.findFirst({
+            where: { tenantId }
+        });
+
+        if (!account) {
+            account = await this.prisma.whatsAppAccount.create({
+                data: {
+                    tenantId,
+                    wabaId: dto.wabaId,
+                    accessToken: dto.accessToken,
+                }
+            });
+        } else {
+            account = await this.prisma.whatsAppAccount.update({
+                where: { id: account.id },
+                data: {
+                    wabaId: dto.wabaId,
+                    accessToken: dto.accessToken,
+                }
+            });
+        }
+
+        // Handle phone number
+        const phone = await this.prisma.whatsAppPhoneNumber.findFirst({
+            where: { whatsappAccountId: account.id }
+        });
+
+        if (phone) {
+            await this.prisma.whatsAppPhoneNumber.update({
+                where: { id: phone.id },
+                data: { phoneNumberId: dto.phoneNumberId }
+            });
+        } else {
+            await this.prisma.whatsAppPhoneNumber.create({
+                data: {
+                    whatsappAccountId: account.id,
+                    phoneNumberId: dto.phoneNumberId,
+                    displayPhoneNumber: 'Primary'
+                }
+            });
+        }
+
+        return { success: true };
     }
 
     /**
@@ -328,10 +453,173 @@ export class WhatsappService {
             include: { whatsappAccount: true }
         });
 
-        if (phone) return phone.whatsappAccount.tenantId;
+        if (phone) {
+            this.logger.log(`Found tenantId ${phone.whatsappAccount.tenantId} for phoneId ${phoneId}`);
+            return phone.whatsappAccount.tenantId;
+        }
 
         // Fallback: Return first tenant if none found (for dev)
         const firstTenant = await this.prisma.tenant.findFirst();
+        this.logger.log(`Fallback: First tenantId found: ${firstTenant?.id}`);
         return firstTenant?.id || null;
+    }
+
+    /**
+     * Internal helper to send AI responses and register them.
+     */
+    private async sendInternalAiMessage(tenantId: string, conversationId: string, to: string, content: string) {
+        // Fetch credentials (similar to sendMessage but internal)
+        const account = await this.prisma.whatsAppAccount.findFirst({
+            where: { tenantId },
+            include: { phoneNumbers: true }
+        });
+
+        const accessToken = account?.accessToken;
+        const phoneNumberId = account?.phoneNumbers?.[0]?.phoneNumberId;
+
+        if (!accessToken || !phoneNumberId) {
+            this.logger.error(`Cannot send AI response: WhatsApp credentials missing for tenant ${tenantId}`);
+            return;
+        }
+
+        const url = `https://graph.facebook.com/${this.apiVersion}/${phoneNumberId}/messages`;
+
+        try {
+            const cleanTo = to.replace('+', '');
+            const response = await firstValueFrom(
+                this.httpService.post(
+                    url,
+                    {
+                        messaging_product: 'whatsapp',
+                        recipient_type: 'individual',
+                        to: cleanTo,
+                        type: 'text',
+                        text: { preview_url: false, body: content },
+                    },
+                    {
+                        headers: {
+                            Authorization: `Bearer ${accessToken}`,
+                            'Content-Type': 'application/json',
+                        },
+                    },
+                ),
+            );
+
+            const wamid = response.data.messages[0].id;
+
+            // Register AI response message
+            await this.prisma.message.create({
+                data: {
+                    conversationId,
+                    content,
+                    senderType: 'AI',
+                    type: 'TEXT',
+                    status: 'SENT',
+                    providerId: wamid,
+                    isAI: true
+                }
+            });
+
+            this.logger.log(`Sent AI response for conversation ${conversationId}`);
+
+            // Ensure card is in "Contactado" stage
+            await this.ensureContactedStage(tenantId, conversationId);
+        } catch (error) {
+            this.logger.error(`Error sending AI response: ${error.message}`);
+        }
+    }
+
+    async updateConversationStatus(id: string, tenantId: string, status: string) {
+        return this.prisma.conversation.updateMany({
+            where: {
+                id,
+                tenantId
+            },
+            data: { status }
+        });
+    }
+
+    private async ensureContactedStage(tenantId: string, conversationId: string) {
+        try {
+            const conversation = await this.prisma.conversation.findUnique({
+                where: { id: conversationId }
+            });
+
+            if (!conversation) return;
+
+            // Find the card linked to this contact or lead
+            const card = await this.prisma.card.findFirst({
+                where: {
+                    tenantId,
+                    OR: [
+                        { contactId: conversation.contactId || undefined },
+                        { leadId: conversation.leadId || undefined }
+                    ].filter(cond => Object.values(cond)[0] !== undefined)
+                },
+                orderBy: { createdAt: 'desc' } // Pick most recent card
+            });
+
+            if (!card) return;
+
+            // Find the "En Seguimiento" stage in any of the tenant's pipelines
+            const stage = await this.prisma.stage.findFirst({
+                where: {
+                    pipeline: { tenantId },
+                    name: 'En Seguimiento'
+                }
+            });
+
+            if (stage && card.stageId !== stage.id) {
+                await this.prisma.card.update({
+                    where: { id: card.id },
+                    data: { stageId: stage.id }
+                });
+                this.logger.log(`Automated Kanban: Moved card ${card.id} to En Seguimiento stage`);
+            }
+        } catch (error) {
+            this.logger.error(`Failed to ensure contacted stage: ${error.message}`);
+        }
+    }
+
+    async proxyMedia(tenantId: string | null, mediaId: string, res: any) {
+        const account = await this.prisma.whatsAppAccount.findFirst({
+            where: tenantId ? { tenantId } : {}
+        });
+
+        if (!account?.accessToken) {
+            throw new ForbiddenException('No WhatsApp configuration found');
+        }
+
+        try {
+            // 1. Get Meta URL
+            const metaInfoUrl = `https://graph.facebook.com/${this.apiVersion}/${mediaId}`;
+            const metaInfoResponse = await firstValueFrom(
+                this.httpService.get(metaInfoUrl, {
+                    headers: { Authorization: `Bearer ${account.accessToken}` }
+                })
+            ).catch(err => {
+                this.logger.error(`Meta Info API Error: ${err.message}`);
+                throw err;
+            });
+
+            const downloadUrl = metaInfoResponse.data.url;
+            const mimeType = metaInfoResponse.data.mime_type;
+
+            // 2. Fetch the binary and pipe it to response
+            const mediaResponse = await firstValueFrom(
+                this.httpService.get(downloadUrl, {
+                    headers: { Authorization: `Bearer ${account.accessToken}` },
+                    responseType: 'stream'
+                })
+            );
+
+            res.setHeader('Content-Type', mimeType);
+            mediaResponse.data.pipe(res);
+        } catch (error) {
+            this.logger.error(`Error proxying media: ${error.message}`);
+            if (!res.headersSent) {
+                res.status(500).send('Error fetching media');
+            }
+        }
     }
 }

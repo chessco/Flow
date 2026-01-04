@@ -3,28 +3,39 @@ import { useAppState } from '../StateContext';
 import { Deal } from '../types';
 
 const Kanban: React.FC = () => {
-  const { deals, updateDealStage } = useAppState();
+  const { deals, updateDealStage, stages } = useAppState();
 
-  const columns: { title: Deal['stage']; color: string }[] = [
-    { title: 'Nuevo', color: 'bg-blue-500' },
-    { title: 'Contactado', color: 'bg-orange-400' },
-    { title: 'Calificado', color: 'bg-yellow-400' },
-    { title: 'Cotización', color: 'bg-primary' },
-    { title: 'Negociación', color: 'bg-indigo-500' },
-    { title: 'Ganado', color: 'bg-green-500' },
-  ];
+  const stageColors: Record<string, string> = {
+    'Nuevo': 'bg-blue-500',
+    'Contactado': 'bg-orange-400',
+    'Calificado': 'bg-yellow-400',
+    'Cotización': 'bg-primary',
+    'Negociación': 'bg-indigo-500',
+    'Ganado': 'bg-green-500',
+    'New': 'bg-blue-500',
+    'Contacted': 'bg-orange-400',
+    'Qualified': 'bg-yellow-400',
+    'Proposal': 'bg-primary',
+    'Negotiation': 'bg-indigo-500',
+    'Won': 'bg-green-500',
+  };
 
-  const getDealsByStage = (stage: Deal['stage']) => {
+  const columns = stages.map(stage => ({
+    title: stage.name,
+    color: stageColors[stage.name] || 'bg-slate-400'
+  }));
+
+  const getDealsByStage = (stage: string) => {
     return deals.filter(deal => deal.stage === stage);
   };
 
-  const getColumnValue = (stage: Deal['stage']) => {
+  const getColumnValue = (stage: string) => {
     const stageDeals = getDealsByStage(stage);
-    const total = stageDeals.reduce((sum, deal) => sum + deal.value, 0);
+    const total = stageDeals.reduce((sum, deal) => sum + Number(deal.value), 0);
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(total);
   };
 
-  const moveDeal = (dealId: string, currentStage: Deal['stage']) => {
+  const moveDeal = (dealId: string, currentStage: string) => {
     const currentIndex = columns.findIndex(c => c.title === currentStage);
     if (currentIndex < columns.length - 1) {
       updateDealStage(dealId, columns[currentIndex + 1].title);
@@ -51,10 +62,10 @@ const Kanban: React.FC = () => {
         </div>
         <div className="flex items-center gap-6">
           <div className="hidden lg:flex items-center gap-2">
-            <div className="size-2 rounded-full bg-green-500 animate-pulse"></div>
+            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
             <span className="text-slate-500 dark:text-slate-400 text-xs font-medium">WhatsApp Synced</span>
           </div>
-          <button className="flex items-center justify-center rounded-lg size-10 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 transition-colors">
+          <button className="flex items-center justify-center rounded-lg w-10 h-10 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 transition-colors">
             <span className="material-symbols-outlined text-[20px]">settings</span>
           </button>
         </div>
@@ -83,7 +94,7 @@ const Kanban: React.FC = () => {
                 <div className="flex items-center justify-between mb-3 px-1">
                   <div className="flex items-center gap-2">
                     <h3 className="text-slate-900 dark:text-white font-bold text-base">{col.title}</h3>
-                    <span className="flex items-center justify-center bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-300 text-xs font-bold rounded-full size-6">{stageDeals.length}</span>
+                    <span className="flex items-center justify-center bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-300 text-xs font-bold rounded-full w-6 h-6">{stageDeals.length}</span>
                   </div>
                   <span className="text-xs font-medium text-slate-500">{getColumnValue(col.title)}</span>
                 </div>
@@ -105,7 +116,11 @@ const Kanban: React.FC = () => {
 
                       <div className="flex items-center justify-between pt-1">
                         <div className="flex items-center gap-2">
-                          <img className="size-8 rounded-full bg-slate-200 object-cover" src={deal.avatar} alt={deal.contactName} />
+                          <img
+                            className="w-8 h-8 rounded-full bg-slate-200 object-cover"
+                            src={deal.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(deal.contactName)}&background=random`}
+                            alt={deal.contactName}
+                          />
                           <div className="flex flex-col">
                             <span className="font-bold text-slate-900 dark:text-white text-sm">{deal.contactName}</span>
                             <span className="text-[10px] text-slate-500">{deal.title}</span>

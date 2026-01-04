@@ -10,9 +10,16 @@ import Settings from './components/Settings';
 import Insights from './components/Insights';
 import { StateProvider, useAppState } from './StateContext';
 import { WhatsAppDebug } from './components/WhatsAppDebug';
+import { WhatsAppSettings } from './components/WhatsAppSettings';
+import { Login } from './components/Login';
+import HandoverAlertsPanel from './components/HandoverAlertsPanel';
 
 const AppContent: React.FC = () => {
-  const { activeItem, setActiveItem, activeContactId } = useAppState();
+  const { activeItem, setActiveItem, activeContactId, isAuthenticated } = useAppState();
+
+  if (!isAuthenticated) {
+    return <Login />;
+  }
 
   const renderContent = () => {
     switch (activeItem) {
@@ -23,8 +30,8 @@ const AppContent: React.FC = () => {
       case 'tasks': return <Tasks />;
       case 'settings': return <Settings />;
       case 'insights': return <Insights />;
-      case 'whatsapp-debug': return <WhatsAppDebug />;
-      default: return <Dashboard />;
+      default:
+        return <Dashboard />;
     }
   };
 
@@ -35,6 +42,7 @@ const AppContent: React.FC = () => {
       <div className="flex-1 flex flex-col h-full w-full overflow-hidden relative">
         {renderContent()}
       </div>
+      <HandoverAlertsPanel />
     </div>
   );
 };

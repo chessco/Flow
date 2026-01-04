@@ -11,19 +11,20 @@ datasource db {
 }
 
 model Tenant {
-  id            String   @id @default(uuid())
-  name          String
-  slug          String   @unique
-  logoUrl       String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  logoUrl   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  users         User[]
-  contacts      Contact[]
-  leads         Lead[]
-  pipelines     Pipeline[]
-  conversations Conversation[]
+  users            User[]
+  contacts         Contact[]
+  leads            Lead[]
+  pipelines        Pipeline[]
+  conversations    Conversation[]
   whatsappAccounts WhatsAppAccount[]
+  Note             Note[]
 }
 
 model User {
@@ -36,6 +37,7 @@ model User {
   tenant    Tenant   @relation(fields: [tenantId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  Note      Note[]
 
   @@index([tenantId])
 }
@@ -43,7 +45,7 @@ model User {
 model Contact {
   id        String   @id @default(uuid())
   name      String
-  phone     String   // Formato internacional
+  phone     String // Formato internacional
   email     String?
   avatar    String?
   tenantId  String
@@ -53,6 +55,7 @@ model Contact {
 
   conversations Conversation[]
   cards         Card[]
+  Note          Note[]
 
   @@unique([tenantId, phone])
   @@index([tenantId])
@@ -71,33 +74,34 @@ model Lead {
 
   conversations Conversation[]
   cards         Card[]
+  Note          Note[]
 
   @@unique([tenantId, phone])
   @@index([tenantId])
 }
 
 model WhatsAppAccount {
-  id           String   @id @default(uuid())
-  wabaId       String   @unique
+  id           String                @id @default(uuid())
+  wabaId       String                @unique
   name         String?
-  accessToken  String   @db.Text
+  accessToken  String                @db.Text
   tenantId     String
-  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  tenant       Tenant                @relation(fields: [tenantId], references: [id])
   phoneNumbers WhatsAppPhoneNumber[]
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
 
   @@index([tenantId])
 }
 
 model WhatsAppPhoneNumber {
-  id                 String   @id @default(uuid())
-  phoneNumberId      String   @unique
+  id                 String          @id @default(uuid())
+  phoneNumberId      String          @unique
   displayPhoneNumber String
   whatsappAccountId  String
   whatsappAccount    WhatsAppAccount @relation(fields: [whatsappAccountId], references: [id])
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
 
   @@index([whatsappAccountId])
 }
@@ -132,9 +136,9 @@ model Card {
   title     String
   value     Decimal  @default(0) @db.Decimal(15, 2)
   contactId String?
-  contact   Contact?  @relation(fields: [contactId], references: [id])
+  contact   Contact? @relation(fields: [contactId], references: [id])
   leadId    String?
-  lead      Lead?     @relation(fields: [leadId], references: [id])
+  lead      Lead?    @relation(fields: [leadId], references: [id])
   stageId   String
   stage     Stage    @relation(fields: [stageId], references: [id])
   tenantId  String
@@ -146,34 +150,70 @@ model Card {
 }
 
 model Conversation {
-  id            String   @id @default(uuid())
+  id            String          @id @default(uuid())
   contactId     String?
-  contact       Contact? @relation(fields: [contactId], references: [id])
+  contact       Contact?        @relation(fields: [contactId], references: [id])
   leadId        String?
-  lead          Lead?    @relation(fields: [leadId], references: [id])
+  lead          Lead?           @relation(fields: [leadId], references: [id])
   tenantId      String
-  tenant        Tenant   @relation(fields: [tenantId], references: [id])
-  lastMessageAt DateTime @default(now())
-  status        String   @default("OPEN") // OPEN, PENDING, CLOSED
+  tenant        Tenant          @relation(fields: [tenantId], references: [id])
+  lastMessageAt DateTime        @default(now())
+  status        String          @default("OPEN") // OPEN, PENDING, CLOSED
+  aiManaged     Boolean         @default(false)
   messages      Message[]
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  alerts        HandoverAlert[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
 
   @@index([tenantId])
 }
 
-model Message {
-  id             String   @id @default(uuid())
+model HandoverAlert {
+  id             String       @id @default(uuid())
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id])
-  senderType     String   // AGENT, CONTACT, SYSTEM, AI
-  senderId       String?  // ID del User o null si es Contact/Lead
-  content        String   @db.Text
-  type           String   @default("TEXT") // TEXT, IMAGE, DOCUMENT, AUDIO
-  status         String   @default("SENT") // SENT, DELIVERED, READ, FAILED
-  providerId     String?  // ID de WhatsApp Cloud API (wamid)
-  isAI           Boolean  @default(false)
-  createdAt      DateTime @default(now())
+  tenantId       String
+  reason         String?      @db.Text
+  status         String       @default("PENDING") // PENDING, RESOLVED
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([tenantId])
+  @@index([conversationId])
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  senderType     String // AGENT, CONTACT, SYSTEM, AI
+  senderId       String? // ID del User o null si es Contact/Lead
+  content        String       @db.Text
+  type           String       @default("TEXT") // TEXT, IMAGE, DOCUMENT, AUDIO
+  status         String       @default("SENT") // SENT, DELIVERED, READ, FAILED
+  providerId     String? // ID de WhatsApp Cloud API (wamid)
+  isAI           Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  mediaUrl       String?      @db.Text
 
   @@index([conversationId])
+}
+
+model Note {
+  id        String   @id @default(uuid())
+  content   String   @db.Text
+  contactId String?
+  contact   Contact? @relation(fields: [contactId], references: [id])
+  leadId    String?
+  lead      Lead?    @relation(fields: [leadId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([contactId])
+  @@index([leadId])
 }

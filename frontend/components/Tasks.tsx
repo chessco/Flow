@@ -75,7 +75,11 @@ const Tasks: React.FC = () => {
                   </td>
                   <td className="p-4">
                     <div className="flex items-center gap-3">
-                      <img className="size-8 rounded-full object-cover" src={task.contactAvatar} alt={task.contactName} />
+                      <img
+                        className="w-8 h-8 rounded-full object-cover bg-slate-100"
+                        src={task.contactAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(task.contactName)}&background=random`}
+                        alt={task.contactName}
+                      />
                       <div className="flex flex-col">
                         <span className="text-sm font-medium text-slate-900 dark:text-white">{task.contactName}</span>
                       </div>
@@ -86,13 +90,19 @@ const Tasks: React.FC = () => {
                   </td>
                   <td className="p-4">
                     <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${task.priority === 'High' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
-                        task.priority === 'Medium' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' :
-                          'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                      task.priority === 'Medium' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' :
+                        'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
                       }`}>
                       {task.priority}
                     </span>
                   </td>
-                  <td className="p-4"><img className="size-8 rounded-full border-2 border-white dark:border-slate-700" src={task.assigneeAvatar} alt="Assignee" /></td>
+                  <td className="p-4">
+                    <img
+                      className="w-8 h-8 rounded-full border-2 border-white dark:border-slate-700 bg-slate-100"
+                      src={task.assigneeAvatar || `https://ui-avatars.com/api/?name=User&background=random`}
+                      alt="Assignee"
+                    />
+                  </td>
                   <td className="p-4"><button className="text-slate-400 hover:text-primary transition-colors"><span className="material-symbols-outlined">more_vert</span></button></td>
                 </tr>
               ))}

@@ -1,6 +1,6 @@
 // @ts-ignore
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-console.log('--- PitayaFlow API Configuration ---');
+export const API_BASE_URL = 'http://localhost:3001'; // Forced for local dev synchronization
+console.log('--- PitayaFlow API Configuration (FORCED) ---');
 console.log('API_BASE_URL:', API_BASE_URL);
 console.log('-----------------------------------');
 
@@ -37,7 +37,10 @@ class PitayaAPI {
             headers: this.getHeaders(),
             body: JSON.stringify(data),
         });
-        if (!response.ok) throw new Error('API Error');
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'API Error');
+        }
         return response.json();
     }
 
@@ -49,6 +52,23 @@ class PitayaAPI {
             this.get('/whatsapp/conversations'),
         getHistory: (conversationId: string) =>
             this.get(`/whatsapp/history/${conversationId}`),
+        getSettings: () =>
+            this.get('/whatsapp/settings'),
+        updateSettings: (data: any) =>
+            this.post('/whatsapp/settings', data),
+        setStatus: (conversationId: string, status: string) =>
+            this.post(`/whatsapp/conversation/${conversationId}/status`, { status }),
+    };
+
+    crm = {
+        getNotes: (personId: string, type: string) =>
+            this.get(`/crm/notes/${personId}?type=${type}`),
+        addNote: (personId: string, type: string, content: string) =>
+            this.post(`/crm/notes/${personId}?type=${type}`, { content }),
+    };
+
+    auth = {
+        login: (credentials: any) => this.post('/auth/login', credentials),
     };
 
     kanban = {
@@ -58,8 +78,16 @@ class PitayaAPI {
     };
 
     ai = {
-        getSuggestions: (conversationId: string) =>
-            this.get(`/ai/suggestions/${conversationId}`),
+        getSuggestions: (conversationId: string) => this.get(`/ai/suggestions/${conversationId}`),
+        summarize: (conversationId: string) => this.get(`/ai/summarize/${conversationId}`),
+        analyzeContext: (conversationId: string) => this.get(`/ai/context/${conversationId}`),
+        refineText: (text: string) => this.post('/ai/refine', { text }),
+        getConfig: () => this.get('/ai/config'),
+        updateConfig: (config: any) => this.post('/ai/config', config),
+        getAlerts: () => this.get('/ai/alerts'),
+        resolveAlert: (alertId: string) => this.post(`/ai/alerts/${alertId}/resolve`, {}),
+        toggleAiManaged: (conversationId: string, managed: boolean) =>
+            this.post(`/ai/conversation/${conversationId}/managed`, { managed }),
     };
 }
 

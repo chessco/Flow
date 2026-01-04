@@ -60,7 +60,11 @@ const ContactsList: React.FC = () => {
                                 >
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
-                                            <img className="size-10 rounded-full object-cover shadow-sm bg-slate-200" src={contact.avatar} alt={contact.name} />
+                                            <img
+                                                className="w-10 h-10 rounded-full object-cover shadow-sm bg-slate-200"
+                                                src={contact.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(contact.name)}&background=random`}
+                                                alt={contact.name}
+                                            />
                                             <div className="flex flex-col">
                                                 <span className="font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors">{contact.name}</span>
                                                 <span className="text-xs text-slate-500">{contact.role} @ {contact.company}</span>
@@ -69,10 +73,10 @@ const ContactsList: React.FC = () => {
                                     </td>
                                     <td className="px-6 py-4 text-center">
                                         <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${contact.status === 'online'
-                                                ? 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400 border border-green-100 dark:border-green-800'
-                                                : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
+                                            ? 'bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400 border border-green-100 dark:border-green-800'
+                                            : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
                                             }`}>
-                                            <span className={`size-1.5 rounded-full ${contact.status === 'online' ? 'bg-green-500' : 'bg-slate-400'}`}></span>
+                                            <span className={`w-1.5 h-1.5 rounded-full ${contact.status === 'online' ? 'bg-green-500' : 'bg-slate-400'}`}></span>
                                             {contact.status}
                                         </span>
                                     </td>
@@ -87,10 +91,10 @@ const ContactsList: React.FC = () => {
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <div className="flex justify-end gap-2">
-                                            <button className="size-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-primary hover:bg-primary/10 transition-colors">
+                                            <button className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-primary hover:bg-primary/10 transition-colors">
                                                 <span className="material-symbols-outlined text-[20px]">chat</span>
                                             </button>
-                                            <button className="size-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-primary hover:bg-primary/10 transition-colors">
+                                            <button className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-primary hover:bg-primary/10 transition-colors">
                                                 <span className="material-symbols-outlined text-[20px]">more_vert</span>
                                             </button>
                                         </div>

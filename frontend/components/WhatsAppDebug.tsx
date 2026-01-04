@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { api } from '../src/lib/api';
 
 interface Message {
     id: string;
@@ -15,57 +16,32 @@ export const WhatsAppDebug: React.FC = () => {
     const [status, setStatus] = useState('');
 
     const fetchMessages = async () => {
-        // In a real app we would fetch by conversation ID, but for debug we might just list recent or specific to phone
-        // For now mocking or assuming we have an endpoint to list all
         try {
-            const token = localStorage.getItem('token');
-            // This endpoint needs to be verified in backend
-            const res = await fetch('http://localhost:3000/whatsapp/conversations', {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'x-tenant-id': 'default-tenant-id' // Replace with actual tenant ID logic
-                }
-            });
-            if (res.ok) {
-                const data = await res.json();
-                // Just flattening first conversation for debug
-                if (data.length > 0) {
-                    setMessages(data[0].messages || []);
-                }
+            const data = await api.whatsapp.getConversations();
+            if (data && data.length > 0) {
+                // Just flattening first conversation matches the previous debug logic
+                setMessages(data[0].messages || []);
             }
         } catch (e) {
-            console.error(e);
+            console.error('Debug fetch error:', e);
         }
     };
 
+    useEffect(() => {
+        fetchMessages();
+    }, []);
+
     const sendMessage = async () => {
+        if (!phone || !message) {
+            setStatus('Error: Phone and message are required');
+            return;
+        }
         setStatus('Sending...');
         try {
-            const token = localStorage.getItem('token');
-            // TODO: Get actual tenant ID from context/auth
-            const tenantId = 'default-tenant-id';
-
-            const res = await fetch('http://localhost:3000/whatsapp/send', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
-                    'x-tenant-id': tenantId
-                },
-                body: JSON.stringify({
-                    to: phone,
-                    content: message
-                })
-            });
-
-            if (res.ok) {
-                setStatus('Sent!');
-                setMessage('');
-                fetchMessages();
-            } else {
-                const err = await res.json();
-                setStatus(`Error: ${err.message}`);
-            }
+            const result = await api.whatsapp.sendMessage(phone, message);
+            setStatus('Sent!');
+            setMessage('');
+            fetchMessages();
         } catch (e: any) {
             setStatus(`Error: ${e.message}`);
         }
