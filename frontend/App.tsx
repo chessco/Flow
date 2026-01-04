@@ -9,6 +9,7 @@ import Tasks from './components/Tasks';
 import Settings from './components/Settings';
 import Insights from './components/Insights';
 import { StateProvider, useAppState } from './StateContext';
+import { WhatsAppDebug } from './components/WhatsAppDebug';
 
 const AppContent: React.FC = () => {
   const { activeItem, setActiveItem, activeContactId } = useAppState();
@@ -22,6 +23,7 @@ const AppContent: React.FC = () => {
       case 'tasks': return <Tasks />;
       case 'settings': return <Settings />;
       case 'insights': return <Insights />;
+      case 'whatsapp-debug': return <WhatsAppDebug />;
       default: return <Dashboard />;
     }
   };

@@ -15,6 +15,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate }) => {
     { id: 'tasks', label: 'Tasks', icon: 'check_box' },
     { id: 'insights', label: 'Insights', icon: 'bar_chart' },
     { id: 'settings', label: 'Automations', icon: 'schema' }, // Mapping automations to settings for demo
+    { id: 'whatsapp-debug', label: 'WhatsApp Debug', icon: 'bug_report' },
   ];
 
   return (
@@ -23,7 +24,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate }) => {
         {/* Logo */}
         <div className="flex gap-3 items-center px-2 mb-2">
           <div className="bg-gradient-to-tr from-blue-600 to-cyan-400 aspect-square rounded-full size-10 flex items-center justify-center text-white shadow-lg shadow-blue-500/30">
-             <span className="material-symbols-outlined text-[24px]">water_drop</span>
+            <span className="material-symbols-outlined text-[24px]">water_drop</span>
           </div>
           <div className="flex flex-col">
             <h1 className="text-slate-900 dark:text-white text-base font-bold leading-normal">PitayaCode</h1>
@@ -38,8 +39,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate }) => {
               key={item.id}
               onClick={() => onNavigate(item.id)}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors group w-full text-left
-                ${activeItem === item.id 
-                  ? 'bg-primary/10 text-primary dark:text-blue-400' 
+                ${activeItem === item.id
+                  ? 'bg-primary/10 text-primary dark:text-blue-400'
                   : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
                 }`}
             >
@@ -62,7 +63,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate }) => {
           <span className="material-symbols-outlined text-[20px] mr-2">add</span>
           New Chat
         </button>
-        
+
         <div className="flex flex-col gap-1">
           <button className="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors w-full text-left">
             <span className="material-symbols-outlined">settings</span>
@@ -70,15 +71,15 @@ const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate }) => {
           </button>
           <button className="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors w-full text-left">
             <div className="size-6 rounded-full bg-slate-200 overflow-hidden">
-              <img 
-                alt="Profile" 
-                className="w-full h-full object-cover" 
-                src="https://i.pravatar.cc/150?u=a042581f4e29026704d" 
+              <img
+                alt="Profile"
+                className="w-full h-full object-cover"
+                src="https://i.pravatar.cc/150?u=a042581f4e29026704d"
               />
             </div>
             <div className="flex flex-col">
-                <p className="text-sm font-medium leading-none">Alex Morgan</p>
-                <p className="text-[10px] text-slate-400">Sales Lead</p>
+              <p className="text-sm font-medium leading-none">Alex Morgan</p>
+              <p className="text-[10px] text-slate-400">Sales Lead</p>
             </div>
           </button>
         </div>

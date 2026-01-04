@@ -1,4 +1,4 @@
-export type NavigationItem = 'dashboard' | 'inbox' | 'kanban' | 'contacts' | 'tasks' | 'insights' | 'settings';
+export type NavigationItem = 'dashboard' | 'inbox' | 'kanban' | 'contacts' | 'tasks' | 'insights' | 'settings' | 'whatsapp-debug';
 
 export interface Deal {
   id: string;
