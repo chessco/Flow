@@ -25,6 +25,7 @@ model Tenant {
   conversations    Conversation[]
   whatsappAccounts WhatsAppAccount[]
   Note             Note[]
+  tasks            Task[]
 }
 
 model User {
@@ -56,6 +57,8 @@ model Contact {
   conversations Conversation[]
   cards         Card[]
   Note          Note[]
+  tasks         Task[]
+  tags          Json?
 
   @@unique([tenantId, phone])
   @@index([tenantId])
@@ -75,6 +78,8 @@ model Lead {
   conversations Conversation[]
   cards         Card[]
   Note          Note[]
+  tasks         Task[]
+  tags          Json?
 
   @@unique([tenantId, phone])
   @@index([tenantId])
@@ -212,6 +217,26 @@ model Note {
   tenant    Tenant   @relation(fields: [tenantId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([contactId])
+  @@index([leadId])
+}
+model Task {
+  id          String   @id @default(uuid())
+  title       String
+  description String?  @db.Text
+  dueDate     String?
+  status      String   @default("New") // New, On Track, Breach, Completed
+  priority    String   @default("Medium") // Low, Medium, High
+  contactId   String?
+  contact     Contact? @relation(fields: [contactId], references: [id])
+  leadId      String?
+  lead        Lead?    @relation(fields: [leadId], references: [id])
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([tenantId])
   @@index([contactId])

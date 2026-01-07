@@ -54,6 +54,29 @@ export const translations = {
             waDebug: "WhatsApp Debug",
             waSettings: "WhatsApp Settings",
         },
+        insights: {
+            title: "Flow Insights",
+            subtitle: "Real-time operational metrics for your WhatsApp sales pipeline.",
+            export: "Export Report",
+            newReport: "New Report",
+            aiAnalysis: {
+                title: "AI Revenue Analysis",
+                momentum: "High Momentum",
+                description: "Based on current negotiation stages, you are on track to exceed Q4 targets by {percent}.",
+                viewFull: "View Full Analysis"
+            },
+            kpis: {
+                contacts: "Total Contacts",
+                deals: "Active Deals",
+                pipeline: "Pipeline Value",
+                automation: "AI Automation"
+            },
+            charts: {
+                revenue: "Revenue Growth",
+                revenueSub: "Projected vs Actual Revenue this week",
+                legend: "Revenue"
+            }
+        },
         dashboard: {
             greeting: "Good Morning, {name}",
             activeChats: "Active Chats",
@@ -100,13 +123,105 @@ export const translations = {
         },
         handover: {
             alerts: "Intervention Alerts",
-            jump: "Jump to Chat",
+            jump: "Ver Chat",
+            approvePayment: "Approve Payment",
             resolve: "Mark Resolve",
             noAlerts: "No pending alerts",
             aiManaged: "AI Managed",
             aiDisabled: "AI Handed over to Human",
             autoPilot: "Autonomous AI Mode",
             autoPilotDesc: "Enable AI to automatically reply to messages.",
+        },
+        contacts: {
+            title: "Contacts",
+            subtitle: "Manage and view all your customer relationships.",
+            searchPlaceholder: "Search contacts...",
+            addContact: "Add Contact",
+            table: {
+                contact: "Contact",
+                status: "Status",
+                tags: "Tags",
+                actions: "Actions"
+            },
+            noContacts: "No contacts found",
+            trySearch: "Try a different search term.",
+            selectContact: "Select a contact to view profile",
+            viewAll: "View All Contacts"
+        },
+        profile: {
+            tabs: {
+                overview: "Overview",
+                notes: "Notes",
+                tasks: "Tasks",
+                files: "Files"
+            },
+            details: "Details",
+            contactInfo: "Contact Info",
+            tags: "Tags",
+            aiInsight: "Pitaya AI Insight",
+            verified: "Verified Contact",
+            active: "Active",
+            newDeal: "New Deal",
+            comingSoon: "{tab} feature coming soon",
+            noActivity: "No recent activity",
+            yourMessage: "Your Message",
+            waInteraction: "WhatsApp Interaction",
+            notes: {
+                placeholder: "Type a new note...",
+                save: "Save Note",
+                saving: "Saving...",
+                noNotes: "No notes yet",
+                by: "by"
+            },
+            edit: {
+                title: "Edit Contact",
+                name: "Full Name",
+                email: "Email Address",
+                phone: "Phone Number",
+                save: "Save Changes",
+                saving: "Saving..."
+            }
+        },
+        tasks: {
+            title: "Tasks & Follow-ups",
+            subtitle: "Manage your daily operations, SLAs, and conversation follow-ups.",
+            createTask: "Create Task",
+            totalTasks: "Total Tasks",
+            completedTasks: "Completed Tasks",
+            highPriority: "High Priority",
+            breachTasks: "Breach Tasks",
+            table: {
+                description: "Task Description",
+                contact: "Contact",
+                dueDate: "Due Date",
+                priority: "Priority",
+                assignee: "Assignee"
+            },
+            modal: {
+                title: "Create New Task",
+                subtitle: "Add a task to your flow board.",
+                taskTitle: "Task Title",
+                titlePlaceholder: "e.g. Follow up on proposal",
+                linkContext: "Link to Context",
+                searchPlaceholder: "Search WhatsApp contact...",
+                linkedTo: "Linked to",
+                none: "None",
+                priorityLevel: "Priority Level",
+                assigneeLabel: "Assignee",
+                you: "You"
+            }
+        },
+        automations: {
+            title: "Automations",
+            subtitle: "Create and manage your intelligent workflows.",
+            createAutomation: "Create Automation",
+            active: "Active",
+            inactive: "Inactive",
+            lastRun: "Last run: {time}",
+            triggers: "Triggers",
+            actions: "Actions",
+            noAutomations: "No automations found",
+            comingSoon: "Visual Automation Builder coming soon."
         }
     },
     es: {
@@ -208,13 +323,128 @@ export const translations = {
         },
         handover: {
             alerts: "Alertas de Intervención",
-            jump: "Ir al Chat",
+            jump: "Ver Chat",
+            approvePayment: "Aprobar Pago",
             resolve: "Resolver",
             noAlerts: "Sin alertas pendientes",
             aiManaged: "Gestionado por IA",
             aiDisabled: "IA cedió el control a Humano",
             autoPilot: "Modo IA Autónomo",
             autoPilotDesc: "Permite que la IA responda mensajes automáticamente.",
+        },
+        contacts: {
+            title: "Contactos",
+            subtitle: "Gestiona y visualiza todas tus relaciones con clientes.",
+            searchPlaceholder: "Buscar contactos...",
+            addContact: "Nuevo Contacto",
+            table: {
+                contact: "Contacto",
+                status: "Estado",
+                tags: "Etiquetas",
+                actions: "Acciones"
+            },
+            noContacts: "No se encontraron contactos",
+            trySearch: "Intenta con un término de búsqueda diferente.",
+            selectContact: "Selecciona un contacto para ver su perfil",
+            viewAll: "Ver todos los contactos"
+        },
+        profile: {
+            tabs: {
+                overview: "Resumen",
+                notes: "Notas",
+                tasks: "Tareas",
+                files: "Archivos"
+            },
+            details: "Detalles",
+            contactInfo: "Información de contacto",
+            tags: "Etiquetas",
+            aiInsight: "Insight de Pitaya IA",
+            verified: "Contacto Verificado",
+            active: "Activo",
+            newDeal: "Nuevo Negocio",
+            comingSoon: "La función de {tab} estará disponible pronto",
+            noActivity: "Sin actividad reciente",
+            yourMessage: "Tu Mensaje",
+            waInteraction: "Interacción de WhatsApp",
+            notes: {
+                placeholder: "Escribe una nueva nota...",
+                save: "Guardar Nota",
+                saving: "Guardando...",
+                noNotes: "Aún no hay notas",
+                by: "por"
+            },
+            edit: {
+                title: "Editar Contacto",
+                name: "Nombre Completo",
+                email: "Correo Electrónico",
+                phone: "Número de Teléfono",
+                save: "Guardar Cambios",
+                saving: "Guardando..."
+            }
+        },
+        tasks: {
+            title: "Tareas y Seguimientos",
+            subtitle: "Gestiona tus operaciones diarias, SLAs y seguimientos de conversaciones.",
+            createTask: "Crear Tarea",
+            totalTasks: "Tareas Totales",
+            completedTasks: "Tareas Completadas",
+            highPriority: "Prioridad Alta",
+            breachTasks: "Tareas en Incumplimiento",
+            table: {
+                description: "Descripción de la Tarea",
+                contact: "Contacto",
+                dueDate: "Fecha de Vencimiento",
+                priority: "Prioridad",
+                assignee: "Asignado"
+            },
+            modal: {
+                title: "Crear Nueva Tarea",
+                subtitle: "Añade una tarea a tu tablero de flujo.",
+                taskTitle: "Título de la Tarea",
+                titlePlaceholder: "Ej: Seguimiento de propuesta",
+                linkContext: "Vincular al Contexto",
+                searchPlaceholder: "Buscar contacto de WhatsApp...",
+                linkedTo: "Vinculado a",
+                none: "Ninguno",
+                priorityLevel: "Nivel de Prioridad",
+                assigneeLabel: "Responsable",
+                you: "Tú"
+            }
+        },
+        automations: {
+            title: "Automatizaciones",
+            subtitle: "Crea y gestiona tus flujos de trabajo inteligentes.",
+            createAutomation: "Nueva Automatización",
+            active: "Activa",
+            inactive: "Inactiva",
+            lastRun: "Última ejecución: {time}",
+            triggers: "Disparadores",
+            actions: "Acciones",
+            noAutomations: "No se encontraron automatizaciones",
+            comingSoon: "Constructor Visual de Automatizaciones próximamente."
+        },
+        insights: {
+            title: "Insights de Flujo",
+            subtitle: "Métricas operativas en tiempo real para tu canal de ventas de WhatsApp.",
+            export: "Exportar Reporte",
+            newReport: "Nuevo Reporte",
+            aiAnalysis: {
+                title: "Análisis de Ingresos por IA",
+                momentum: "Alto Momento",
+                description: "Según las etapas actuales de negociación, estás en camino de superar los objetivos del cuarto trimestre en un {percent}.",
+                viewFull: "Ver Análisis Completo"
+            },
+            kpis: {
+                contacts: "Contactos Totales",
+                deals: "Tratos Activos",
+                pipeline: "Valor del Pipeline",
+                automation: "Automatización IA"
+            },
+            charts: {
+                revenue: "Crecimiento de Ingresos",
+                revenueSub: "Ingresos Proyectados vs Reales esta semana",
+                legend: "Ingresos"
+            }
         }
     }
 };

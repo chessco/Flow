@@ -8,7 +8,6 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 
 @Controller('whatsapp')
-@Controller('whatsapp')
 export class WhatsappController {
     constructor(private readonly whatsappService: WhatsappService) { }
 
@@ -40,7 +39,7 @@ export class WhatsappController {
     @UseGuards(AuthGuard('jwt'), RolesGuard, TenantGuard)
     @Roles('TENANT_ADMIN')
     async getSettings(@Req() req: any) {
-        return this.whatsappService.getSettings(req.tenantId);
+        return this.whatsappService.getSettings(req.tenantId, req.user);
     }
 
     @Post('settings')

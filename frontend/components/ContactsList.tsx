@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAppState } from '../StateContext';
 
 const ContactsList: React.FC = () => {
-    const { contacts, setActiveContactId, setActiveItem } = useAppState();
+    const { contacts, setActiveContactId, t, setActiveItem } = useAppState();
     const [searchQuery, setSearchQuery] = useState('');
 
     const filteredContacts = contacts.filter(contact =>
@@ -15,19 +15,25 @@ const ContactsList: React.FC = () => {
         setActiveContactId(id);
     };
 
+    const handleWhatsAppClick = (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        setActiveContactId(id);
+        setActiveItem('inbox');
+    };
+
     return (
         <div className="flex-1 flex flex-col h-full overflow-hidden bg-background-light dark:bg-background-dark p-6 md:p-10">
             <header className="flex flex-wrap justify-between items-end gap-4 mb-8">
                 <div className="flex flex-col gap-1">
-                    <h2 className="text-slate-900 dark:text-white tracking-tight text-[32px] font-bold leading-tight">Contacts</h2>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm font-normal">Manage and view all your customer relationships.</p>
+                    <h2 className="text-slate-900 dark:text-white tracking-tight text-[32px] font-bold leading-tight">{t('contacts.title')}</h2>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm font-normal">{t('contacts.subtitle')}</p>
                 </div>
                 <div className="flex gap-3">
                     <div className="relative">
                         <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]">search</span>
                         <input
                             type="text"
-                            placeholder="Search contacts..."
+                            placeholder={t('contacts.searchPlaceholder')}
                             className="pl-10 pr-4 py-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all w-64"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
@@ -35,7 +41,7 @@ const ContactsList: React.FC = () => {
                     </div>
                     <button className="flex items-center justify-center rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold shadow-sm hover:bg-primary/90 transition shadow-sm">
                         <span className="material-symbols-outlined text-[20px] mr-2">person_add</span>
-                        Add Contact
+                        {t('contacts.addContact')}
                     </button>
                 </div>
             </header>
@@ -45,10 +51,10 @@ const ContactsList: React.FC = () => {
                     <table className="w-full text-left border-collapse">
                         <thead>
                             <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50">
-                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">Contact</th>
-                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-center">Status</th>
-                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-center">Tags</th>
-                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-right">Actions</th>
+                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest">{t('contacts.table.contact')}</th>
+                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-center">{t('contacts.table.status')}</th>
+                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-center">{t('contacts.table.tags')}</th>
+                                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-widest text-right">{t('contacts.table.actions')}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -77,7 +83,7 @@ const ContactsList: React.FC = () => {
                                             : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
                                             }`}>
                                             <span className={`w-1.5 h-1.5 rounded-full ${contact.status === 'online' ? 'bg-green-500' : 'bg-slate-400'}`}></span>
-                                            {contact.status}
+                                            {contact.status === 'online' ? t('inbox.online') : t('inbox.offline')}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4">
@@ -91,7 +97,10 @@ const ContactsList: React.FC = () => {
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                         <div className="flex justify-end gap-2">
-                                            <button className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-primary hover:bg-primary/10 transition-colors">
+                                            <button
+                                                onClick={(e) => handleWhatsAppClick(contact.id, e)}
+                                                className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-primary hover:bg-primary/10 transition-colors"
+                                            >
                                                 <span className="material-symbols-outlined text-[20px]">chat</span>
                                             </button>
                                             <button className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-primary hover:bg-primary/10 transition-colors">
@@ -107,8 +116,8 @@ const ContactsList: React.FC = () => {
                 {filteredContacts.length === 0 && (
                     <div className="flex-1 flex flex-col items-center justify-center p-10 opacity-40">
                         <span className="material-symbols-outlined text-[64px] mb-2">person_search</span>
-                        <p className="text-lg font-bold">No contacts found</p>
-                        <p className="text-sm">Try a different search term.</p>
+                        <p className="text-lg font-bold">{t('contacts.noContacts')}</p>
+                        <p className="text-sm">{t('contacts.trySearch')}</p>
                     </div>
                 )}
             </div>

@@ -11,6 +11,11 @@ import { UpdateAiConfigDto } from './dto/update-ai-config.dto';
 export class AiController {
     constructor(private readonly aiService: AiService) { }
 
+    @Get('status')
+    async getStatus() {
+        return this.aiService.getRateLimitStatus();
+    }
+
     @Get('suggestions/:conversationId')
     async getSuggestions(@Req() req: any, @Param('conversationId') conversationId: string) {
         const tenantId = req.tenantId;
@@ -34,14 +39,14 @@ export class AiController {
 
     @Get('config')
     @UseGuards(AuthGuard('jwt'), RolesGuard)
-    @Roles('TENANT_ADMIN')
+    @Roles('TENANT_ADMIN', 'SYSTEM_ADMIN')
     async getConfig() {
         return this.aiService.getFullConfig();
     }
 
     @Post('config')
     @UseGuards(AuthGuard('jwt'), RolesGuard)
-    @Roles('TENANT_ADMIN')
+    @Roles('TENANT_ADMIN', 'SYSTEM_ADMIN')
     async updateConfig(@Body() config: UpdateAiConfigDto) {
         return this.aiService.updateConfig(config);
     }
@@ -58,9 +63,21 @@ export class AiController {
         return this.aiService.getHandoverAlerts(tenantId);
     }
 
+    @Get('revenue-analysis')
+    async getRevenueAnalysis(@Req() req: any) {
+        const tenantId = req.tenantId;
+        return this.aiService.generateRevenueAnalysis(tenantId);
+    }
+
     @Post('alerts/:id/resolve')
     async resolveAlert(@Req() req: any, @Param('id') id: string) {
         const tenantId = req.tenantId;
         return this.aiService.resolveHandoverAlert(tenantId, id);
+    }
+
+    @Post('generate-tags/:conversationId')
+    async generateTags(@Req() req: any, @Param('conversationId') conversationId: string) {
+        const tenantId = req.tenantId;
+        return this.aiService.generateTags(tenantId, conversationId);
     }
 }

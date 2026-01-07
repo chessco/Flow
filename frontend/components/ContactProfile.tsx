@@ -4,15 +4,32 @@ import { Note } from '../types';
 import { api } from '../src/lib/api';
 
 const ContactProfile: React.FC = () => {
-  const { activeContactId, setActiveContactId, contacts, messages, t } = useAppState();
+  const { activeContactId, setActiveContactId, contacts, messages, t, language, setActiveItem, stages, tasks, refreshData } = useAppState();
   const [activeTab, setActiveTab] = useState<'Overview' | 'Notes' | 'Tasks' | 'Files'>('Overview');
   const [notes, setNotes] = useState<Note[]>([]);
   const [isNotesLoading, setIsNotesLoading] = useState(false);
   const [newNoteContent, setNewNoteContent] = useState('');
   const [isSavingNote, setIsSavingNote] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editFormData, setEditFormData] = useState({ name: '', email: '', phone: '' });
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [isDealModalOpen, setIsDealModalOpen] = useState(false);
+  const [dealFormData, setDealFormData] = useState({ title: '', value: '0' });
+  const [isCreatingDeal, setIsCreatingDeal] = useState(false);
+  const [isGeneratingTags, setIsGeneratingTags] = useState(false);
 
   const contact = contacts.find(c => c.id === activeContactId);
   const contactMessages = activeContactId ? (messages[activeContactId] || []) : [];
+
+  useEffect(() => {
+    if (contact) {
+      setEditFormData({
+        name: contact.name || '',
+        email: contact.email || '',
+        phone: contact.phone || ''
+      });
+    }
+  }, [contact]);
 
   useEffect(() => {
     if (activeTab === 'Notes' && contact) {
@@ -47,16 +64,79 @@ const ContactProfile: React.FC = () => {
     }
   };
 
+  const handleUpdateContact = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!contact || isUpdating) return;
+    setIsUpdating(true);
+    try {
+      await api.crm.updatePerson(contact.personId, contact.personType, editFormData);
+      setIsEditModalOpen(false);
+      await refreshData();
+    } catch (error) {
+      console.error('Error updating contact:', error);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleCall = () => {
+    if (contact && contact.phone) {
+      window.location.href = `tel:${contact.phone}`;
+    }
+  };
+
+  const handleCreateDeal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!contact || isCreatingDeal || !stages.length) return;
+    setIsCreatingDeal(true);
+    try {
+      const payload: any = {
+        title: dealFormData.title,
+        value: parseFloat(dealFormData.value),
+        stageId: stages[0].id, // Default to first stage
+      };
+
+      if (contact.personType === 'CONTACT') {
+        payload.contactId = contact.personId;
+      } else {
+        payload.leadId = contact.personId;
+      }
+
+      await api.kanban.createDeal(payload);
+      setIsDealModalOpen(false);
+      setDealFormData({ title: '', value: '0' });
+      await refreshData();
+      setActiveItem('kanban'); // Navigate to Kanban to see the new deal
+    } catch (error) {
+      console.error('Error creating deal:', error);
+    } finally {
+      setIsCreatingDeal(false);
+    }
+  };
+
+  const handleGenerateTags = async () => {
+    if (!contact || isGeneratingTags) return;
+    setIsGeneratingTags(true);
+    try {
+      await api.ai.generateTags(contact.id);
+      await refreshData();
+    } catch (error) {
+      console.error('Error generating tags:', error);
+    } finally {
+      setIsGeneratingTags(false);
+    }
+  };
+
   if (!contact) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-10 bg-background-light dark:bg-background-dark">
         <span className="material-symbols-outlined text-[64px] mb-2 opacity-20">person</span>
-        <p className="text-lg font-bold opacity-40">Select a contact to view profile</p>
+        <p className="text-lg font-bold opacity-40">{t('contacts.selectContact')}</p>
         <button
           onClick={() => setActiveContactId(null)}
           className="mt-4 text-primary font-bold hover:underline"
         >
-          View All Contacts
+          {t('contacts.viewAll')}
         </button>
       </div>
     );
@@ -70,7 +150,7 @@ const ContactProfile: React.FC = () => {
           onClick={() => setActiveContactId(null)}
           className="text-slate-500 hover:text-primary text-sm font-medium transition-colors"
         >
-          Contacts
+          {t('contacts.title')}
         </button>
         <span className="material-symbols-outlined text-slate-400 text-[16px]">chevron_right</span>
         <span className="text-slate-900 dark:text-white text-sm font-medium">{contact.name}</span>
@@ -95,29 +175,38 @@ const ContactProfile: React.FC = () => {
                 <h1 className="text-slate-900 dark:text-white text-2xl font-bold leading-tight">{contact.name}</h1>
                 <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 dark:bg-blue-900/30 px-2 py-1 text-xs font-semibold text-blue-700 dark:text-blue-300">
                   <span className="material-symbols-outlined text-[14px]">verified</span>
-                  Verified Contact
+                  {t('profile.verified')}
                 </span>
               </div>
-              <p className="text-slate-500 dark:text-slate-400 text-base mt-1">{contact.role} at {contact.company}</p>
+              <p className="text-slate-500 dark:text-slate-400 text-base mt-1">{contact.role} {language === 'es' ? 'en' : 'at'} {contact.company}</p>
               <div className="flex items-center gap-2 mt-2 text-sm text-slate-500 dark:text-slate-400">
                 <span className="material-symbols-outlined text-[18px]">location_on</span>
-                <span>Active</span>
+                <span>{t('profile.active')}</span>
               </div>
             </div>
           </div>
           <div className="flex flex-wrap gap-3 items-center md:self-center">
-            <button className="flex items-center justify-center gap-2 rounded-lg h-10 px-4 bg-[#25D366] hover:bg-[#20bd5a] text-white text-sm font-bold shadow-sm transition-colors">
+            <button
+              onClick={() => setActiveItem('inbox')}
+              className="flex items-center justify-center gap-2 rounded-lg h-10 px-4 bg-[#25D366] hover:bg-[#20bd5a] text-white text-sm font-bold shadow-sm transition-colors"
+            >
               <span className="material-symbols-outlined text-[20px]">chat</span>
               WhatsApp
             </button>
-            <button className="flex items-center justify-center gap-2 rounded-lg h-10 px-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white hover:bg-slate-50 transition-colors shadow-sm">
+            <button
+              onClick={handleCall}
+              className="flex items-center justify-center gap-2 rounded-lg h-10 px-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white hover:bg-slate-50 transition-colors shadow-sm"
+            >
               <span className="material-symbols-outlined text-[20px]">call</span>
-              Call
+              {language === 'es' ? 'Llamar' : 'Call'}
             </button>
             <div className="h-8 w-px bg-slate-200 dark:bg-slate-700 mx-1 hidden md:block"></div>
-            <button className="flex items-center justify-center gap-2 rounded-lg h-10 px-5 bg-primary hover:bg-primary/90 text-white text-sm font-bold shadow-md transition-colors">
+            <button
+              onClick={() => setIsDealModalOpen(true)}
+              className="flex items-center justify-center gap-2 rounded-lg h-10 px-5 bg-primary hover:bg-primary/90 text-white text-sm font-bold shadow-md transition-colors"
+            >
               <span className="material-symbols-outlined text-[20px]">add</span>
-              New Deal
+              {t('profile.newDeal')}
             </button>
           </div>
         </div>
@@ -132,39 +221,67 @@ const ContactProfile: React.FC = () => {
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
                 <span className="material-symbols-outlined text-[20px]">auto_awesome</span>
-                <span className="text-sm font-bold uppercase tracking-wider">Pitaya AI Insight</span>
+                <span className="text-sm font-bold uppercase tracking-wider">{t('profile.aiInsight')}</span>
               </div>
-              <span className="text-xs font-medium text-green-600 bg-green-50 dark:bg-green-900/20 px-2 py-0.5 rounded border border-green-100 dark:border-green-800">Interested</span>
+              <span className="text-xs font-medium text-green-600 bg-green-50 dark:bg-green-900/20 px-2 py-0.5 rounded border border-green-100 dark:border-green-800">{language === 'es' ? 'Interesado' : 'Interested'}</span>
             </div>
             <p className="text-slate-900 dark:text-gray-200 text-sm leading-relaxed mb-3">
-              Analysis suggests positive momentum after the last interactions.
+              {language === 'es' ? 'El análisis sugiere un impulso positivo tras las últimas interacciones.' : 'Analysis suggests positive momentum after the last interactions.'}
             </p>
           </div>
 
           {/* Details */}
           <div className="bg-white dark:bg-[#1e2330] rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
             <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
-              <h3 className="text-slate-900 dark:text-white font-bold text-base">Details</h3>
-              <button className="text-primary text-sm font-medium hover:underline">Edit</button>
+              <h3 className="text-slate-900 dark:text-white font-bold text-base">{t('profile.details')}</h3>
+              <button
+                onClick={() => setIsEditModalOpen(true)}
+                className="text-primary text-sm font-medium hover:underline"
+              >
+                {language === 'es' ? 'Editar' : 'Edit'}
+              </button>
             </div>
             <div className="p-5 flex flex-col gap-5">
               <div className="grid gap-1">
-                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Contact Info</p>
+                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">{t('profile.contactInfo')}</p>
                 <div className="flex items-center justify-between group">
                   <span className="text-sm text-slate-900 dark:text-gray-200">{contact.phone}</span>
                 </div>
+                {contact.email && (
+                  <div className="flex items-center justify-between group">
+                    <span className="text-sm text-slate-900 dark:text-gray-200">{contact.email}</span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between group">
                   <span className="text-sm text-slate-900 dark:text-gray-200">{contact.company}</span>
                 </div>
               </div>
               <div className="grid gap-1">
-                <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">Tags</p>
-                <div className="flex gap-2 flex-wrap">
-                  {contact.tags?.map(tag => (
-                    <span key={tag} className="inline-flex items-center gap-1 rounded bg-slate-100 dark:bg-slate-700 px-2 h-6 text-xs font-medium text-slate-900 dark:text-white">
-                      <span className="material-symbols-outlined text-[14px] text-amber-500">star</span> {tag}
-                    </span>
-                  ))}
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">{t('profile.tags')}</p>
+                  <button
+                    onClick={handleGenerateTags}
+                    disabled={isGeneratingTags}
+                    className="text-primary text-[10px] font-bold uppercase tracking-wider hover:underline flex items-center gap-1 disabled:opacity-50"
+                  >
+                    {isGeneratingTags ? (
+                      <span className="material-symbols-outlined animate-spin text-[14px]">progress_activity</span>
+                    ) : (
+                      <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
+                    )}
+                    {language === 'es' ? 'Generar con IA' : 'Generate with AI'}
+                  </button>
+                </div>
+                <div className="flex gap-2 flex-wrap mt-1">
+                  {contact.tags && contact.tags.length > 0 ? (
+                    contact.tags.map(tag => (
+                      <span key={tag} className="inline-flex items-center gap-1 rounded bg-slate-100 dark:bg-slate-800 px-2 h-6 text-xs font-medium text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700">
+                        <span className="material-symbols-outlined text-[14px] text-amber-500">star</span> {tag}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-xs text-slate-400 italic">{language === 'es' ? 'Sin etiquetas' : 'No tags'}</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -182,8 +299,12 @@ const ContactProfile: React.FC = () => {
                   onClick={() => setActiveTab(tab)}
                   className={`flex items-center justify-center border-b-[3px] px-4 py-4 min-w-fit transition-all ${activeTab === tab ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
                 >
-                  <span className="text-sm font-bold">{tab}</span>
-                  {tab === 'Tasks' && <span className="ml-2 bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">0</span>}
+                  <span className="text-sm font-bold">{t(`profile.tabs.${tab.toLowerCase()}` as any)}</span>
+                  {tab === 'Tasks' && (
+                    <span className="ml-2 bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                      {tasks.filter(t => t.contactName === contact.name).length}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -203,7 +324,7 @@ const ContactProfile: React.FC = () => {
                   <div className="flex flex-col gap-1">
                     <div className="flex items-baseline gap-2">
                       <span className="text-sm font-bold text-slate-900 dark:text-white">
-                        {msg.sender === 'me' ? 'Your Message' : 'WhatsApp Interaction'}
+                        {msg.sender === 'me' ? t('profile.yourMessage') : t('profile.waInteraction')}
                       </span>
                       <span className="text-xs text-slate-500">{msg.timestamp}</span>
                     </div>
@@ -223,7 +344,7 @@ const ContactProfile: React.FC = () => {
               {contactMessages.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-10 opacity-40">
                   <span className="material-symbols-outlined text-4xl mb-2">history</span>
-                  <p className="text-sm font-medium">No recent activity</p>
+                  <p className="text-sm font-medium">{t('profile.noActivity')}</p>
                 </div>
               )}
             </div>
@@ -236,7 +357,7 @@ const ContactProfile: React.FC = () => {
                 <textarea
                   value={newNoteContent}
                   onChange={(e) => setNewNoteContent(e.target.value)}
-                  placeholder="Type a new note..."
+                  placeholder={t('profile.notes.placeholder')}
                   className="w-full h-24 bg-transparent border-none focus:ring-0 text-sm text-slate-900 dark:text-gray-200 resize-none"
                 />
                 <div className="flex justify-end mt-2">
@@ -245,7 +366,7 @@ const ContactProfile: React.FC = () => {
                     disabled={!newNoteContent.trim() || isSavingNote}
                     className="px-4 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-white text-sm font-bold rounded-lg transition-all"
                   >
-                    {isSavingNote ? 'Saving...' : 'Save Note'}
+                    {isSavingNote ? t('profile.notes.saving') : t('profile.notes.save')}
                   </button>
                 </div>
               </div>
@@ -259,7 +380,7 @@ const ContactProfile: React.FC = () => {
                 ) : notes.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-10 opacity-40">
                     <span className="material-symbols-outlined text-4xl mb-2">notes</span>
-                    <p className="text-sm font-medium">No notes yet</p>
+                    <p className="text-sm font-medium">{t('profile.notes.noNotes')}</p>
                   </div>
                 ) : (
                   notes.map((note) => (
@@ -285,14 +406,188 @@ const ContactProfile: React.FC = () => {
             </div>
           )}
 
-          {(activeTab === 'Tasks' || activeTab === 'Files') && (
-            <div className="flex flex-col items-center justify-center py-20 opacity-30 animate-in fade-in duration-300">
-              <span className="material-symbols-outlined text-6xl mb-4">construction</span>
-              <p className="text-lg font-bold">{activeTab} feature coming soon</p>
+          {activeTab === 'Tasks' && (
+            <div className="flex flex-col gap-4 animate-in fade-in duration-300">
+              {tasks.filter(t => t.contactName === contact.name || (t as any).contactId === contact.personId).length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 opacity-30">
+                  <span className="material-symbols-outlined text-6xl mb-4">assignment_turned_in</span>
+                  <p className="text-lg font-bold">{language === 'es' ? 'No hay tareas para este contacto' : 'No tasks for this contact'}</p>
+                </div>
+              ) : (
+                tasks.filter(t => t.contactName === contact.name || (t as any).contactId === contact.personId).map((task) => (
+                  <div key={task.id} className="bg-white dark:bg-[#1e2330] rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm flex items-center justify-between group hover:border-primary/30 transition-all">
+                    <div className="flex items-center gap-4">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${task.priority === 'High' ? 'bg-red-100 text-red-600' : 'bg-primary/10 text-primary'}`}>
+                        <span className="material-symbols-outlined text-[20px]">
+                          {task.priority === 'High' ? 'priority_high' : 'assignment'}
+                        </span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold text-slate-900 dark:text-white">{task.title}</span>
+                        <div className="flex items-center gap-3 mt-1">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{task.dueDate}</span>
+                          <span className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded ${task.priority === 'High' ? 'bg-red-500 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+                            {task.priority}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <button className="text-slate-400 hover:text-primary transition-colors">
+                      <span className="material-symbols-outlined">more_vert</span>
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           )}
+
+          {activeTab === 'Files' && (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 animate-in fade-in duration-300">
+              {contactMessages.filter(m => m.mediaUrl).length === 0 ? (
+                <div className="col-span-full flex flex-col items-center justify-center py-20 opacity-30">
+                  <span className="material-symbols-outlined text-6xl mb-4">folder_open</span>
+                  <p className="text-lg font-bold">{language === 'es' ? 'No hay archivos compartidos' : 'No shared files'}</p>
+                </div>
+              ) : (
+                contactMessages.filter(m => m.mediaUrl).map((msg) => (
+                  <a
+                    key={msg.id}
+                    href={msg.mediaUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="bg-white dark:bg-[#1e2330] rounded-xl border border-slate-200 dark:border-slate-800 p-3 shadow-sm hover:border-primary/50 transition-all group"
+                  >
+                    <div className="aspect-square bg-slate-100 dark:bg-slate-800 rounded-lg flex items-center justify-center mb-2 overflow-hidden">
+                      {msg.type === 'image' ? (
+                        <img src={msg.mediaUrl} alt="Contact Media" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                      ) : (
+                        <span className="material-symbols-outlined text-4xl text-slate-400">
+                          {msg.type === 'video' ? 'movie' : msg.type === 'audio' ? 'audiotrack' : 'description'}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                        {msg.fileName || (msg.type === 'image' ? 'Imagen' : msg.type === 'video' ? 'Video' : 'Documento')}
+                      </span>
+                      <span className="text-[10px] text-slate-500">{msg.timestamp}</span>
+                    </div>
+                  </a>
+                ))
+              )}
+            </div>
+          )}
+
         </div>
       </div>
+
+      {/* Edit Modal */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-[#1e2330] rounded-2xl w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-800 p-8">
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">{t('profile.edit.title')}</h2>
+            <form onSubmit={handleUpdateContact} className="flex flex-col gap-5">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-bold text-slate-500 uppercase tracking-wide">{t('profile.edit.name')}</label>
+                <input
+                  type="text"
+                  required
+                  value={editFormData.name}
+                  onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                  className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-bold text-slate-500 uppercase tracking-wide">{t('profile.edit.email')}</label>
+                <input
+                  type="email"
+                  value={editFormData.email}
+                  onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+                  className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-bold text-slate-500 uppercase tracking-wide">{t('profile.edit.phone')}</label>
+                <input
+                  type="text"
+                  required
+                  value={editFormData.phone}
+                  onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
+                  className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                />
+              </div>
+              <div className="flex gap-3 mt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="flex-1 py-3 text-sm font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all"
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUpdating}
+                  className="flex-1 py-3 bg-primary hover:bg-primary/90 disabled:opacity-50 text-white text-sm font-bold rounded-lg shadow-lg shadow-primary/20 transition-all"
+                >
+                  {isUpdating ? t('profile.edit.saving') : t('profile.edit.save')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* New Deal Modal */}
+      {isDealModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-[#1e2330] rounded-2xl w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-800 p-8">
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">{t('profile.newDeal')}</h2>
+            <form onSubmit={handleCreateDeal} className="flex flex-col gap-5">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-bold text-slate-500 uppercase tracking-wide">
+                  {language === 'es' ? 'Título del Negocio' : 'Deal Title'}
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder={language === 'es' ? 'Ej: Implementación Web' : 'e.g. Web Implementation'}
+                  value={dealFormData.title}
+                  onChange={(e) => setDealFormData({ ...dealFormData, title: e.target.value })}
+                  className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-bold text-slate-500 uppercase tracking-wide">
+                  {language === 'es' ? 'Valor (USD)' : 'Value (USD)'}
+                </label>
+                <input
+                  type="number"
+                  required
+                  value={dealFormData.value}
+                  onChange={(e) => setDealFormData({ ...dealFormData, value: e.target.value })}
+                  className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2.5 text-slate-900 dark:text-white focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                />
+              </div>
+              <div className="flex gap-3 mt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsDealModalOpen(false)}
+                  className="flex-1 py-3 text-sm font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-all"
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreatingDeal}
+                  className="flex-1 py-3 bg-primary hover:bg-primary/90 disabled:opacity-50 text-white text-sm font-bold rounded-lg shadow-lg shadow-primary/20 transition-all"
+                >
+                  {isCreatingDeal ? t('profile.edit.saving') : language === 'es' ? 'Crear Negocio' : 'Create Deal'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

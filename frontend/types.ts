@@ -1,4 +1,4 @@
-export type NavigationItem = 'dashboard' | 'contacts' | 'deals' | 'tasks' | 'insights' | 'inbox' | 'whatsapp-debug' | 'whatsapp-settings' | 'settings' | 'kanban';
+export type NavigationItem = 'dashboard' | 'contacts' | 'deals' | 'tasks' | 'insights' | 'inbox' | 'whatsapp-debug' | 'whatsapp-settings' | 'settings' | 'kanban' | 'automations';
 
 export interface Deal {
   id: string;
@@ -9,6 +9,8 @@ export interface Deal {
   probability: number;
   avatar: string;
   date: string;
+  personId?: string;
+  personType?: 'CONTACT' | 'LEAD';
 }
 
 
@@ -48,6 +50,7 @@ export interface Contact {
   personType: 'CONTACT' | 'LEAD';
   name: string;
   phone: string;
+  email?: string;
   role: string;
   company: string;
   avatar: string;
@@ -68,4 +71,18 @@ export interface Message {
   isAI?: boolean;
   createdAt: string;
   mediaUrl?: string;
+}
+
+export interface Workflow {
+  id: string;
+  name: string;
+  description: string;
+  active: boolean;
+  lastRun: string;
+  triggers: string;
+  actions: string;
+  content?: string;
+  executionType: 'once' | 'always';
+  delayMinutes?: number;
+  condition?: string;
 }

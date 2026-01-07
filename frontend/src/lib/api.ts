@@ -44,6 +44,29 @@ class PitayaAPI {
         return response.json();
     }
 
+    async patch(endpoint: string, data: any) {
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+            method: 'PATCH',
+            headers: this.getHeaders(),
+            body: JSON.stringify(data),
+        });
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'API Error');
+        }
+        return response.json();
+    }
+
+    async delete(endpoint: string) {
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+            method: 'DELETE',
+            headers: this.getHeaders(),
+            body: JSON.stringify({}) // Some APIS need body even for delete
+        });
+        if (!response.ok) throw new Error('API Error');
+        return response.json();
+    }
+
     // Métodos específicos del dominio
     whatsapp = {
         sendMessage: (to: string, content: string) =>
@@ -65,6 +88,17 @@ class PitayaAPI {
             this.get(`/crm/notes/${personId}?type=${type}`),
         addNote: (personId: string, type: string, content: string) =>
             this.post(`/crm/notes/${personId}?type=${type}`, { content }),
+        updatePerson: (personId: string, type: string, data: any) =>
+            this.post(`/crm/person/${personId}?type=${type}`, data),
+        deletePerson: (personId: string, type: 'CONTACT' | 'LEAD') =>
+            this.delete(`/crm/person/${personId}?type=${type}`),
+        tasks: {
+            getAll: (personId?: string, personType?: string) =>
+                this.get(`/crm/tasks${personId ? `?personId=${personId}&personType=${personType}` : ''}`),
+            create: (data: any) => this.post('/crm/tasks', data),
+            update: (id: string, data: any) => this.patch(`/crm/tasks/${id}`, data),
+            delete: (id: string) => this.delete(`/crm/tasks/${id}`)
+        }
     };
 
     auth = {
@@ -75,9 +109,19 @@ class PitayaAPI {
         getBoard: () => this.get('/kanban'),
         moveCard: (cardId: string, stageId: string) =>
             this.post('/kanban/move', { cardId, stageId }),
+        createDeal: (data: any) =>
+            this.post('/kanban/card', data),
+        updateCard: (cardId: string, data: any) =>
+            this.patch(`/kanban/card/${cardId}`, data),
+
+        approvePayment: (alertId: string) =>
+            this.post('/kanban/approve-payment', { alertId }),
+        deleteCard: (cardId: string) =>
+            this.delete(`/kanban/card/${cardId}`),
     };
 
     ai = {
+        getStatus: () => this.get('/ai/status'),
         getSuggestions: (conversationId: string) => this.get(`/ai/suggestions/${conversationId}`),
         summarize: (conversationId: string) => this.get(`/ai/summarize/${conversationId}`),
         analyzeContext: (conversationId: string) => this.get(`/ai/context/${conversationId}`),
@@ -85,9 +129,12 @@ class PitayaAPI {
         getConfig: () => this.get('/ai/config'),
         updateConfig: (config: any) => this.post('/ai/config', config),
         getAlerts: () => this.get('/ai/alerts'),
+        getRevenueAnalysis: () => this.get('/ai/revenue-analysis'),
         resolveAlert: (alertId: string) => this.post(`/ai/alerts/${alertId}/resolve`, {}),
         toggleAiManaged: (conversationId: string, managed: boolean) =>
             this.post(`/ai/conversation/${conversationId}/managed`, { managed }),
+        generateTags: (conversationId: string) =>
+            this.post(`/ai/generate-tags/${conversationId}`, {}),
     };
 }
 

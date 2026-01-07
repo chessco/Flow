@@ -7,7 +7,7 @@ interface AiDrawerProps {
 }
 
 const AiDrawer: React.FC<AiDrawerProps> = ({ onClose }) => {
-  const { contacts, activeContactId, messages, t, refreshData, aiCache, setAiCacheData } = useAppState();
+  const { contacts, activeContactId, messages, t, refreshData, aiCache, setAiCacheData, language, deals, stages } = useAppState();
   const [summary, setSummary] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [isAiManaged, setIsAiManaged] = useState(false);
@@ -21,12 +21,22 @@ const AiDrawer: React.FC<AiDrawerProps> = ({ onClose }) => {
       budget?: string;
       location?: string;
       meetingDate?: string;
-    }
+    },
+    tags?: string[];
+    currentStageName?: string;
+    currentStageOrder?: number;
   } | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isGeneratingTags, setIsGeneratingTags] = useState(false);
 
   const activeContact = contacts.find(c => c.id === activeContactId);
   const contactName = activeContact?.name || 'Customer';
+
+  // Live Deal Sync Logic
+  const activeDeal = deals.find(d => d.personId === activeContact?.personId);
+  const currentDealStage = stages.find(s => s.name === activeDeal?.stage);
+  const displayStageName = activeDeal?.stage || analysis?.currentStageName || 'Nuevo Lead (Meta)';
+  const displayStageOrder = currentDealStage?.order || analysis?.currentStageOrder || 1;
 
   useEffect(() => {
     if (activeContact) {
@@ -67,19 +77,18 @@ const AiDrawer: React.FC<AiDrawerProps> = ({ onClose }) => {
   useEffect(() => {
     if (activeContactId) {
       const currentCache = aiCache[activeContactId];
-      const messageCount = messages[activeContactId]?.length || 0;
 
-      if (currentCache && currentCache.lastMessageCount === messageCount) {
-        // Use cached data
-        setSummary(currentCache.summary);
-        setAnalysis(currentCache.analysis);
+      if (currentCache) {
+        // Use cached data if available
+        setSummary(currentCache.summary || '');
+        setAnalysis(currentCache.analysis || null);
       } else {
-        // Fetch new data
-        fetchSummary();
+        // If no cache, don't auto-fetch, just clear view
+        setSummary('');
         setAnalysis(null);
       }
     }
-  }, [activeContactId, messages[activeContactId]?.length]);
+  }, [activeContactId]); // Only trigger when contact changes, not on message length
 
   const fetchSummary = async () => {
     if (!activeContactId) return;
@@ -114,10 +123,30 @@ const AiDrawer: React.FC<AiDrawerProps> = ({ onClose }) => {
         analysis: result,
         lastMessageCount: messages[activeContactId]?.length || 0
       });
+
+      // Force refresh if budget was detected and updated (to sync Kanban)
+      if (result.extractedData?.budget) {
+        refreshData();
+      }
     } catch (error) {
       console.error('Error analyzing context:', error);
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  const handleGenerateTags = async () => {
+    if (!activeContactId || isGeneratingTags) return;
+    setIsGeneratingTags(true);
+    try {
+      await api.ai.generateTags(activeContactId);
+      refreshData();
+      // Re-run analysis to get updated tags in the view
+      await analyzeContext();
+    } catch (error) {
+      console.error('Error generating tags:', error);
+    } finally {
+      setIsGeneratingTags(false);
     }
   };
 
@@ -138,9 +167,18 @@ const AiDrawer: React.FC<AiDrawerProps> = ({ onClose }) => {
             <p className="text-[11px] font-medium text-primary">{t('aiDrawer.subtitle')} {contactName}</p>
           </div>
         </div>
-        <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-          <span className="material-symbols-outlined text-[20px]">close</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { fetchSummary(); analyzeContext(); }}
+            className="p-2 text-primary hover:bg-primary/10 rounded-full transition-colors flex items-center gap-1"
+            title="Actualizar todo"
+          >
+            <span className="material-symbols-outlined text-[20px]">refresh</span>
+          </button>
+          <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+            <span className="material-symbols-outlined text-[20px]">close</span>
+          </button>
+        </div>
       </div>
 
       {/* Content */}
@@ -173,6 +211,86 @@ const AiDrawer: React.FC<AiDrawerProps> = ({ onClose }) => {
                   />
                 </button>
               </div>
+            </div>
+
+            {/* Sales Process Stepper - NEW */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between px-1">
+                <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">PROCESO DE VENTA</h4>
+                {displayStageName && (
+                  <span className="text-[10px] bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 px-2 py-0.5 rounded-full font-bold">
+                    {displayStageName}
+                  </span>
+                )}
+              </div>
+
+              <div className="relative flex items-center justify-between px-2 py-4">
+                {/* Connecting Line */}
+                <div className="absolute top-1/2 left-0 w-full h-0.5 bg-slate-100 dark:bg-slate-800 -translate-y-1/2 z-0"></div>
+
+                {/* Steps */}
+                {[1, 2, 3, 4, 5, 6].map((step) => {
+                  const currentOrder = displayStageOrder;
+                  const isCompleted = step < currentOrder;
+                  const isActive = step === currentOrder;
+
+                  return (
+                    <div key={step} className="relative z-10 flex flex-col items-center">
+                      <div className={`h-6 w-6 rounded-full flex items-center justify-center border-2 transition-all duration-500 ${isCompleted
+                        ? 'bg-green-500 border-green-500 text-white'
+                        : isActive
+                          ? 'bg-primary border-primary text-white scale-125 shadow-lg shadow-primary/20'
+                          : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-300'
+                        }`}>
+                        {isCompleted ? (
+                          <span className="material-symbols-outlined text-[14px]">check</span>
+                        ) : (
+                          <span className="text-[10px] font-bold">{step}</span>
+                        )}
+                      </div>
+                      <div className="absolute top-8 whitespace-nowrap">
+                        {isActive && (
+                          <span className="text-[8px] font-bold text-primary uppercase animate-pulse">Actual</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {displayStageName === 'Venta Cerrada / Completado' && (
+                <div className="bg-green-50 dark:bg-green-900/10 border border-green-100 dark:border-green-800/30 rounded-xl p-3 flex items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-500">
+                  <div className="h-8 w-8 rounded-full bg-green-100 dark:bg-green-900/50 flex items-center justify-center text-green-600">
+                    <span className="material-symbols-outlined text-[20px]">verified</span>
+                  </div>
+                  <div>
+                    <h5 className="text-[11px] font-bold text-green-800 dark:text-green-200">Pago Verificado</h5>
+                    <p className="text-[10px] text-green-700/80 dark:text-green-300/70">La IA está lista para enviar los productos digitales.</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Deal Value Display */}
+              {activeDeal && (
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 flex items-center justify-between shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                      <span className="material-symbols-outlined text-[18px]">attach_money</span>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Valor del Trato</p>
+                      <p className="text-sm font-bold text-slate-900 dark:text-white">
+                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(activeDeal.value)}
+                      </p>
+                    </div>
+                  </div>
+                  {analysis?.extractedData?.budget && (
+                    <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold animate-pulse">
+                      ¡Detectado!
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Summary Section - NEW Real AI Content */}
@@ -255,7 +373,13 @@ const AiDrawer: React.FC<AiDrawerProps> = ({ onClose }) => {
                   <div>
                     <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wide">{t('aiDrawer.intentLabel')}</p>
                     <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-                      {analysis?.intent || t('aiDrawer.intentValue')}
+                      {isAnalyzing ? (
+                        <span className="flex items-center gap-2">
+                          <span className="animate-pulse">{t('aiDrawer.intentValue')}</span>
+                        </span>
+                      ) : (
+                        analysis?.intent || t('aiDrawer.intentValue')
+                      )}
                     </p>
                   </div>
                 </div>
@@ -268,6 +392,38 @@ const AiDrawer: React.FC<AiDrawerProps> = ({ onClose }) => {
                     <span className="material-symbols-outlined text-primary text-[18px]">data_check</span>
                     <h5 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide">{t('aiDrawer.extractedData.title')}</h5>
                   </div>
+
+                  {/* Tags in Autopilot */}
+                  <div className="flex flex-col gap-2 pb-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-tight">ETIQUETAS</span>
+                      <button
+                        onClick={handleGenerateTags}
+                        disabled={isGeneratingTags}
+                        className="text-[10px] text-primary font-bold hover:underline flex items-center gap-1 disabled:opacity-50"
+                      >
+                        {isGeneratingTags ? (
+                          <span className="material-symbols-outlined animate-spin text-[12px]">progress_activity</span>
+                        ) : (
+                          <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
+                        )}
+                        {language === 'es' ? 'Generar' : 'Generate'}
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(analysis?.tags || activeContact?.tags || []).length > 0 ? (
+                        (analysis?.tags || activeContact?.tags || []).map((tag: string) => (
+                          <span key={tag} className="inline-flex items-center gap-1 rounded bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                            <span className="material-symbols-outlined text-[10px] text-amber-500">star</span> {tag}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-[10px] text-slate-400 italic">No tags detected</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="h-px bg-slate-100 dark:bg-slate-800 my-2"></div>
 
                   {analysis.extractedData.email && (
                     <div className="flex justify-between items-center text-sm">

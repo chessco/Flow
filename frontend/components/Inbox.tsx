@@ -17,7 +17,10 @@ const Inbox: React.FC = () => {
     isRefinedLoading,
     refineMessage,
     t,
-    language
+    language,
+    user,
+    deletePerson,
+    canDelete
   } = useAppState();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -206,6 +209,19 @@ const Inbox: React.FC = () => {
               <span className="material-symbols-outlined text-[18px]">bolt</span>
               {t('inbox.aicopilot')}
             </button>
+            {canDelete && (
+              <button
+                onClick={() => {
+                  if (window.confirm(`¿Estás seguro de que deseas eliminar permanentemente a ${activeContact.name}? Se borrarán todos los mensajes, notas y tarjetas asociadas.`)) {
+                    deletePerson(activeContact.personId, activeContact.personType || 'LEAD');
+                  }
+                }}
+                className="p-2 text-slate-400 hover:text-red-500 rounded-lg transition-colors"
+                title="Borrar contacto/lead permanentemente"
+              >
+                <span className="material-symbols-outlined text-[20px]">delete</span>
+              </button>
+            )}
             <button className="p-2 text-slate-400 hover:text-slate-600 rounded-lg transition-colors">
               <span className="material-symbols-outlined text-[20px]">more_vert</span>
             </button>

@@ -32,4 +32,26 @@ export class CRMController {
     async deleteNote(@Req() req: any, @Param('noteId') noteId: string) {
         return this.crmService.deleteNote(noteId, req.tenantId);
     }
+
+    @Post('person/:id')
+    async updatePerson(
+        @Req() req: any,
+        @Param('id') personId: string,
+        @Query('type') type: 'CONTACT' | 'LEAD',
+        @Body() body: { name?: string, phone?: string, email?: string }
+    ) {
+        return this.crmService.updatePerson(personId, type, req.tenantId, body);
+    }
+
+    @Delete('person/:id')
+    async deletePerson(
+        @Req() req: any,
+        @Param('id') personId: string,
+        @Query('type') type: 'CONTACT' | 'LEAD'
+    ) {
+        if (req.user.role !== 'ADMIN' && req.user.role !== 'SYSTEM_ADMIN') {
+            throw new Error('Forbidden: Only admins can delete persons');
+        }
+        return this.crmService.deletePerson(personId, type, req.tenantId);
+    }
 }

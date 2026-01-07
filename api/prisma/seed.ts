@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
@@ -21,18 +22,20 @@ async function main() {
 
     // 2. Create Default User
     const adminId = 'admin-user-001';
+    const hashedPassword = await bcrypt.hash('pitaya123', 10);
+
     await prisma.user.upsert({
         where: { id: adminId },
         update: {
             email: 'admin@pitayacode.io',
-            password: 'pitaya123',
+            password: hashedPassword,
         },
         create: {
             id: adminId,
             email: 'admin@pitayacode.io',
-            password: 'pitaya123', // In production use bcrypt
+            password: hashedPassword,
             name: 'Admin User',
-            role: 'ADMIN',
+            role: 'SYSTEM_ADMIN',
             tenantId: tenant.id,
         },
     });
@@ -49,12 +52,12 @@ async function main() {
             tenantId: tenant.id,
             stages: {
                 create: [
-                    { name: 'Nuevo', order: 1 },
-                    { name: 'Contactado', order: 2 },
-                    { name: 'Calificado', order: 3 },
-                    { name: 'Cotización', order: 4 },
-                    { name: 'Negociación', order: 5 },
-                    { name: 'Ganado', order: 6 },
+                    { id: 'stage-1', name: 'Nuevo Lead (Meta)', order: 1 },
+                    { id: 'stage-2', name: 'En Seguimiento / Info Enviada', order: 2 },
+                    { id: 'stage-3', name: 'Calificado / Interesado', order: 3 },
+                    { id: 'stage-4', name: 'Esperando Transferencia', order: 4 },
+                    { id: 'stage-5', name: 'Pago por Verificar', order: 5 },
+                    { id: 'stage-6', name: 'Venta Cerrada / Completado', order: 6 },
                 ],
             },
         },

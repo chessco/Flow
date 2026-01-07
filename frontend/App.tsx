@@ -8,6 +8,7 @@ import ContactProfile from './components/ContactProfile';
 import Tasks from './components/Tasks';
 import Settings from './components/Settings';
 import Insights from './components/Insights';
+import Automations from './components/Automations';
 import { StateProvider, useAppState } from './StateContext';
 import { WhatsAppDebug } from './components/WhatsAppDebug';
 import { WhatsAppSettings } from './components/WhatsAppSettings';
@@ -30,6 +31,7 @@ const AppContent: React.FC = () => {
       case 'tasks': return <Tasks />;
       case 'settings': return <Settings />;
       case 'insights': return <Insights />;
+      case 'automations': return <Automations />;
       default:
         return <Dashboard />;
     }

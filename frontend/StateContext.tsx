@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { ActionHistory, Contact, Message, Deal, Task, NavigationItem } from './types';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
+import { ActionHistory, Contact, Message, Deal, Task, NavigationItem, Workflow } from './types';
 import { api, API_BASE_URL } from './src/lib/api';
 import { translations, Language } from './src/lib/translations';
 
@@ -31,6 +31,13 @@ interface StateContextType {
     sendMessage: (contactId: string, text: string) => void;
     updateDealStage: (dealId: string, stage: Deal['stage']) => void;
     addTask: (task: Omit<Task, 'id'>) => void;
+    updateTask: (taskId: string, updates: Partial<Task>) => void;
+    deleteTask: (taskId: string) => void;
+    workflows: Workflow[];
+    addWorkflow: (workflow: Omit<Workflow, 'id' | 'lastRun'>) => void;
+    updateWorkflow: (workflowId: string, updates: Partial<Workflow>) => void;
+    deleteWorkflow: (workflowId: string) => void;
+    triggerWorkflows: (trigger: string, contactId: string) => Promise<void>;
     suggestions: any[];
     refreshSuggestions: (contactId: string) => void;
     isRefinedLoading: boolean;
@@ -44,11 +51,25 @@ interface StateContextType {
     user: any;
     handoverAlerts: any[];
     fetchHandoverAlerts: () => void;
+    fetchTasks: (personId?: string, personType?: string) => Promise<void>;
     resolveHandoverAlert: (alertId: string) => void;
+    approvePayment: (alertId: string) => void;
     refreshData: () => Promise<void>;
     aiCache: Record<string, { summary: string, analysis: any, lastMessageCount: number, suggestions: any[], lastSuggestionCount: number }>;
     setAiCacheData: (contactId: string, data: { summary?: string, analysis?: any, lastMessageCount?: number, suggestions?: any[], lastSuggestionCount?: number }) => void;
     stages: { id: string, name: string, order: number }[];
+    revenueAnalysis: any | null;
+    fetchRevenueAnalysis: (force?: boolean) => Promise<void>;
+    aiStatus: { isLimited: boolean, count: number, limit: number, remainingRefresh: number } | null;
+    deletePerson: (id: string, type: 'CONTACT' | 'LEAD') => Promise<void>;
+
+    deleteCard: (id: string) => Promise<void>;
+    updateCard: (id: string, updates: { title?: string, value?: number }) => Promise<void>;
+    isAdmin: boolean;
+    isTenantAdmin: boolean;
+    isTenantUser: boolean;
+    canDelete: boolean;
+    canModifySettings: boolean;
 }
 
 const StateContext = createContext<StateContextType | undefined>(undefined);
@@ -58,28 +79,57 @@ export const StateProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const [messages, setMessages] = useState<Record<string, Message[]>>({});
     const [deals, setDeals] = useState<Deal[]>([]);
     const [tasks, setTasks] = useState<Task[]>(mockTasks);
+    const [executedWorkflows, setExecutedWorkflows] = useState<Record<string, string[]>>({});
+    const messagesRef = useRef<Record<string, Message[]>>({});
+    const aiCacheRef = useRef<Record<string, any>>({});
+    const executedWorkflowsRef = useRef<Record<string, string[]>>({});
+
+    // Keep refs in sync with state
+    useEffect(() => {
+        messagesRef.current = messages;
+    }, [messages]);
+
+    useEffect(() => {
+        executedWorkflowsRef.current = executedWorkflows;
+    }, [executedWorkflows]);
+
+    const [workflows, setWorkflows] = useState<Workflow[]>([
+        {
+            id: '1',
+            name: 'WhatsApp Welcome',
+            description: 'Envía un mensaje de bienvenida a nuevos contactos.',
+            active: true,
+            lastRun: '2 hours ago',
+            triggers: 'New Contact',
+            actions: 'WhatsApp Message',
+            content: '¡Hola! Bienvenido a PitayaCode. ¿En qué podemos ayudarte hoy?',
+            executionType: 'once',
+            delayMinutes: 1
+        },
+        {
+            id: '2',
+            name: 'Proposal Follow-up',
+            description: 'Crea una tarea si no hay respuesta en 24h.',
+            active: true,
+            lastRun: 'Yesterday',
+            triggers: 'Message Sent',
+            actions: 'Create Task',
+            content: 'Recordatorio: Seguir propuesta con el cliente.',
+            executionType: 'once',
+            delayMinutes: 1440
+        }
+    ]);
+    const [revenueAnalysis, setRevenueAnalysis] = useState<any | null>(null);
+    const [isRevenueLoading, setIsRevenueLoading] = useState(false);
     const [activeItem, setActiveItem] = useState<NavigationItem>('dashboard');
     const [activeContactId, setActiveContactId] = useState<string | null>(null);
     const [stages, setStages] = useState<{ id: string, name: string, order: number }[]>([]);
-
-    const selectContact = async (id: string | null) => {
-        setActiveContactId(id);
-        if (id) {
-            const contact = contacts.find(c => c.id === id);
-            if (contact && contact.unread) {
-                try {
-                    await api.whatsapp.setStatus(id, 'PENDING');
-                    // Update local state immediately for better UX
-                    setContacts(prev => prev.map(c => c.id === id ? { ...c, unread: false } : c));
-                } catch (e) {
-                    console.error('Failed to mark as read', e);
-                }
-            }
-        }
-    };
+    const workflowLock = useRef<Record<string, string[]>>({}); // Synchronous lock for prevention
     const [suggestions, setSuggestions] = useState<any[]>([]);
+    const [isFetchingSuggestions, setIsFetchingSuggestions] = useState<Record<string, boolean>>({});
     const [isRefinedLoading, setIsRefinedLoading] = useState(false);
     const [handoverAlerts, setHandoverAlerts] = useState<any[]>([]);
+    const [aiStatus, setAiStatus] = useState<{ isLimited: boolean, count: number, limit: number, remainingRefresh: number } | null>(null);
     const [aiCache, setAiCache] = useState<Record<string, { summary: string, analysis: any, lastMessageCount: number, suggestions: any[], lastSuggestionCount: number }>>({});
     const [language, setLanguage] = useState<Language>(() => {
         try {
@@ -97,13 +147,35 @@ export const StateProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [user, setUser] = useState<any>(null);
 
+    // Helper to decode JWT without external dependencies
+    const decodeToken = (token: string) => {
+        try {
+            const base64Url = token.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const jsonPayload = decodeURIComponent(atob(base64).split('').map(function (c) {
+                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join(''));
+            return JSON.parse(jsonPayload);
+        } catch (e) {
+            console.error('Error decoding token', e);
+            return null;
+        }
+    };
+
     // Initial Load - Check for token
     useEffect(() => {
         const token = localStorage.getItem('auth_token');
         if (token) {
-            // Here you could decode the token to check expiry
-            setIsAuthenticated(true);
-            // Optionally set user basic info from decoded token if needed
+            const userData = decodeToken(token);
+            if (userData) {
+                setUser({
+                    id: userData.sub || userData.userId,
+                    email: userData.email,
+                    role: userData.role,
+                    name: userData.email?.split('@')[0] || 'Admin'
+                });
+                setIsAuthenticated(true);
+            }
         }
     }, []);
 
@@ -112,22 +184,15 @@ export const StateProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             const response = await api.auth.login({ email, password });
             if (response.access_token) {
                 localStorage.setItem('auth_token', response.access_token);
-                // Payload structure from jwt.strategy.ts: { userId, email, tenantId, role }
-                // Warning: To get tenantId we might need to decode the token or have the API return it separately.
-                // For now, let's assume the API returns the token and we trust it.
-                // WE NEED TENANT ID. Let's make sure the API returns it or we decode it.
-                // The validateUser logic returns the user object, but login returns access_token.
-                // It's safer if we can decode it, or if the login response includes the tenantId.
-                // Assuming standard JWT, we can't easily decode without a lib on frontend or helper.
-                // NOTE: For quick fix, let's manually fetch the tenantId or store it if we had it.
-                // ACTUALLY, checking create_admin.js shows the token payload has tenantId.
-                // Let's rely on the user having the correct tenantId or better yet, decoding it.
-                // Ideally we use a library like `jwt-decode`.
-                // PROVISIONAL: We will just set isAuthenticated to true.
-                // For the tenantId, we'll assume it's set or we set a default.
-
-                // FIX: Let's assume for this sprint we just set Auth = true.
-                // Ideally we should decode the token.
+                const userData = decodeToken(response.access_token);
+                if (userData) {
+                    setUser({
+                        id: userData.sub || userData.userId,
+                        email: userData.email,
+                        role: userData.role,
+                        name: userData.email?.split('@')[0] || 'Admin'
+                    });
+                }
                 setIsAuthenticated(true);
                 return true;
             }
@@ -166,6 +231,7 @@ export const StateProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             }
 
             const fetchedConversations = await api.whatsapp.getConversations();
+            fetchTasks(); // Load tasks in parallel
 
             const mappedContacts: Contact[] = fetchedConversations.map((c: any) => {
                 const person = c.contact || c.lead;
@@ -175,6 +241,7 @@ export const StateProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                     personType: person ? (c.contactId ? 'CONTACT' : 'LEAD') : 'CONTACT',
                     name: person?.name || person?.phone || 'Unknown',
                     phone: person?.phone || '',
+                    email: person?.email || '',
                     role: person?.role || 'Prospect',
                     company: person?.company || 'Personal',
                     avatar: person?.avatar || '',
@@ -219,9 +286,11 @@ export const StateProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                             value: Number(card.value),
                             contactName: person?.name || person?.phone || 'Unknown',
                             stage: stage.name as Deal['stage'],
-                            probability: 50, // Default
+                            probability: 50,
                             avatar: person?.avatar || '',
-                            date: new Date(card.createdAt).toLocaleDateString()
+                            date: new Date(card.createdAt).toLocaleDateString(),
+                            personId: person?.id,
+                            personType: card.contactId ? 'CONTACT' : 'LEAD'
                         });
                     });
                 });
@@ -263,37 +332,53 @@ export const StateProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                         mediaUrl: m.mediaUrl ? (m.mediaUrl.startsWith('http') ? m.mediaUrl : `${API_BASE_URL}${m.mediaUrl}`) : undefined
                     }));
 
-                    setMessages(prev => {
-                        const existing = prev[activeContactId] || [];
-                        const existingIds = new Set(existing.map(ex => ex.id));
-                        const newOnes = mappedMessages.filter(m => !existingIds.has(m.id));
+                    const existing = (messagesRef.current[activeContactId] || []);
+                    const existingIds = new Set(existing.map(ex => ex.id));
+                    const newOnes = mappedMessages.filter(m => !existingIds.has(m.id));
 
-                        if (newOnes.length === 0) return prev;
+                    if (newOnes.length > 0) {
+                        setMessages(prev => {
+                            const currentMessages = prev[activeContactId] || [];
+                            const currentIds = new Set(currentMessages.map(ex => ex.id));
+                            const trulyNewOnes = newOnes.filter(m => !currentIds.has(m.id));
 
-                        const combined = [...existing, ...newOnes].sort((a, b) =>
-                            new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-                        );
+                            if (trulyNewOnes.length === 0) return prev;
 
-                        return {
-                            ...prev,
-                            [activeContactId]: combined
-                        };
-                    });
+                            const combined = [...currentMessages, ...trulyNewOnes].sort((a, b) =>
+                                new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+                            );
+                            return { ...prev, [activeContactId]: combined };
+                        });
+
+                        // Trigger workflows if new messages arrived from them
+                        if (newOnes.some(m => m.sender === 'them')) {
+                            const isNewContact = (messagesRef.current[activeContactId] || []).length === 0 &&
+                                !mappedMessages.some(m => m.sender === 'me');
+                            triggerWorkflows(isNewContact ? 'New Contact' : 'Inbound Message', activeContactId);
+                        }
+                    }
 
                     // Fetch suggestions if last message is from them AND message count changed
-                    const currentCache = aiCache[activeContactId];
-                    if (mappedMessages.length > 0 && mappedMessages[mappedMessages.length - 1].sender === 'them') {
+                    const currentCache = aiCacheRef.current[activeContactId];
+                    const isAlreadyFetching = isFetchingSuggestions[activeContactId];
+
+                    if (mappedMessages.length > 0 && mappedMessages[mappedMessages.length - 1].sender === 'them' && !isAlreadyFetching) {
                         if (!currentCache || currentCache.lastSuggestionCount !== mappedMessages.length) {
-                            const suggs = await api.ai.getSuggestions(activeContactId);
-                            setSuggestions(suggs);
-                            setAiCacheData(activeContactId, {
-                                suggestions: suggs,
-                                lastSuggestionCount: mappedMessages.length
-                            });
+                            setIsFetchingSuggestions(prev => ({ ...prev, [activeContactId]: true }));
+                            try {
+                                const suggs = await api.ai.getSuggestions(activeContactId);
+                                setSuggestions(suggs);
+                                setAiCacheData(activeContactId, {
+                                    suggestions: suggs,
+                                    lastSuggestionCount: mappedMessages.length
+                                });
+                            } finally {
+                                setIsFetchingSuggestions(prev => ({ ...prev, [activeContactId]: false }));
+                            }
                         } else {
                             setSuggestions(currentCache.suggestions || []);
                         }
-                    } else {
+                    } else if (mappedMessages.length > 0 && mappedMessages[mappedMessages.length - 1].sender === 'me') {
                         setSuggestions([]);
                     }
                 } catch (error) {
@@ -308,6 +393,21 @@ export const StateProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         return () => clearInterval(intervalId);
     }, [activeContactId, isAuthenticated]);
 
+    const selectContact = async (id: string | null) => {
+        setActiveContactId(id);
+        if (id) {
+            const contact = contacts.find(c => c.id === id);
+            if (contact && contact.unread) {
+                try {
+                    await api.whatsapp.setStatus(id, 'PENDING');
+                    // Update local state immediately for better UX
+                    setContacts(prev => prev.map(c => c.id === id ? { ...c, unread: false } : c));
+                } catch (e) {
+                    console.error('Failed to mark as read', e);
+                }
+            }
+        }
+    };
     const sendMessage = async (contactId: string, text: string) => {
         const contact = contacts.find(c => c.id === contactId);
         if (contact) {
@@ -384,12 +484,136 @@ export const StateProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         }
     };
 
-    const addTask = (task: Omit<Task, 'id'>) => {
-        const newTask: Task = {
-            ...task,
-            id: Date.now().toString()
+    const fetchTasks = async (personId?: string, personType?: string) => {
+        try {
+            const fetched = await api.crm.tasks.getAll(personId, personType);
+            // Map backend Task to frontend Task interface
+            const mapped = fetched.map((t: any) => ({
+                id: t.id,
+                title: t.title,
+                description: t.description,
+                dueDate: t.dueDate,
+                status: t.status,
+                priority: t.priority,
+                contactId: t.contactId || t.leadId,
+                contactName: t.contact?.name || t.lead?.name || 'Unknown',
+                contactAvatar: t.contact?.avatar || t.lead?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(t.contact?.name || t.lead?.name || 'U')}`,
+                assigneeAvatar: 'https://i.pravatar.cc/150?u=a042581f4e29026704d'
+            }));
+            setTasks(mapped);
+        } catch (error) {
+            console.error('Failed to fetch tasks:', error);
+        }
+    };
+
+    const addTask = async (task: Omit<Task, 'id'>) => {
+        try {
+            await api.crm.tasks.create(task);
+            await fetchTasks();
+        } catch (error) {
+            console.error('Failed to add task:', error);
+        }
+    };
+
+    const updateTask = async (taskId: string, updates: Partial<Task>) => {
+        try {
+            await api.crm.tasks.update(taskId, updates);
+            await fetchTasks();
+        } catch (error) {
+            console.error('Failed to update task:', error);
+        }
+    };
+
+    const deleteTask = async (taskId: string) => {
+        try {
+            await api.crm.tasks.delete(taskId);
+            await fetchTasks();
+        } catch (error) {
+            console.error('Failed to delete task:', error);
+        }
+    };
+
+    const addWorkflow = (workflow: Omit<Workflow, 'id' | 'lastRun'>) => {
+        const newWorkflow: Workflow = {
+            ...workflow,
+            id: Math.random().toString(36).substr(2, 9),
+            lastRun: 'Never'
         };
-        setTasks(prev => [newTask, ...prev]);
+        setWorkflows(prev => [newWorkflow, ...prev]);
+    };
+
+    const updateWorkflow = (workflowId: string, updates: Partial<Workflow>) => {
+        setWorkflows(prev => prev.map(w => w.id === workflowId ? { ...w, ...updates } : w));
+    };
+
+    const deleteWorkflow = (workflowId: string) => {
+        setWorkflows(prev => prev.filter(w => w.id !== workflowId));
+    };
+
+    const triggerWorkflows = async (trigger: string, contactId: string) => {
+        const contactExecuted = [
+            ...(executedWorkflowsRef.current[contactId] || []),
+            ...(workflowLock.current[contactId] || [])
+        ];
+
+        const activeWorkflows = workflows.filter(w => {
+            const isActive = w.active;
+            const matchesTrigger = w.triggers.toLowerCase().includes(trigger.toLowerCase());
+            const notExecutedOnce = w.executionType === 'always' || !contactExecuted.includes(w.id);
+            return isActive && matchesTrigger && notExecutedOnce;
+        });
+
+        for (const wf of activeWorkflows) {
+            // Immediatly lock the workflow for this contact to prevent race conditions during delay
+            if (wf.executionType === 'once') {
+                workflowLock.current[contactId] = [...(workflowLock.current[contactId] || []), wf.id];
+            }
+
+            // Check AI condition if exists
+            if (wf.condition) {
+                const contactMsgs = messagesRef.current[contactId] || [];
+                const lastMsg = contactMsgs[contactMsgs.length - 1];
+                if (lastMsg && !lastMsg.text.toLowerCase().includes(wf.condition.toLowerCase())) {
+                    // Unlock if condition not met (so it can try again on next message)
+                    if (wf.executionType === 'once') {
+                        workflowLock.current[contactId] = workflowLock.current[contactId].filter(id => id !== wf.id);
+                    }
+                    continue;
+                }
+            }
+
+            const executeAction = async () => {
+                if (wf.actions.toLowerCase().includes('whatsapp message') && wf.content) {
+                    await sendMessage(contactId, wf.content);
+                }
+                if (wf.actions.toLowerCase().includes('create task') && wf.content) {
+                    addTask({
+                        title: wf.content,
+                        contactName: contacts.find(c => c.id === contactId)?.name || 'Unknown',
+                        contactAvatar: contacts.find(c => c.id === contactId)?.avatar,
+                        assigneeAvatar: 'https://i.pravatar.cc/150?u=a042581f4e29026704d',
+                        dueDate: 'Today',
+                        priority: 'Medium',
+                        status: 'New'
+                    });
+                }
+
+                updateWorkflow(wf.id, { lastRun: 'Just now' });
+
+                if (wf.executionType === 'once') {
+                    setExecutedWorkflows(prev => ({
+                        ...prev,
+                        [contactId]: [...(prev[contactId] || []), wf.id]
+                    }));
+                }
+            };
+
+            if (wf.delayMinutes && wf.delayMinutes > 0) {
+                setTimeout(executeAction, wf.delayMinutes * 1000); // Demo seconds, use 60000 for real
+            } else {
+                await executeAction();
+            }
+        }
     };
 
     const refreshSuggestions = async (contactId: string) => {
@@ -430,17 +654,63 @@ export const StateProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             await api.ai.resolveAlert(alertId);
             setHandoverAlerts(prev => prev.filter(a => a.id !== alertId));
         } catch (error) {
-            console.error('Failed to resolve alert:', error);
+            console.error('Error resolving handover alert:', error);
+        }
+    };
+
+    const approvePayment = async (alertId: string) => {
+        try {
+            await api.kanban.approvePayment(alertId);
+            // Refresh counts and data
+            await loadInitialData();
+            await fetchHandoverAlerts();
+        } catch (error) {
+            console.error('Error approving payment:', error);
+        }
+    };
+
+    const fetchRevenueAnalysis = async (force: boolean = false) => {
+        if (!force && revenueAnalysis && !revenueAnalysis.error) return;
+
+        setIsRevenueLoading(true);
+        try {
+            const analysis = await api.ai.getRevenueAnalysis();
+            setRevenueAnalysis(analysis);
+        } catch (error) {
+            console.error('Error fetching revenue analysis:', error);
+            setRevenueAnalysis({
+                summary: "Error de conexión con el servicio de IA.",
+                momentum: "ERROR",
+                error: error.message
+            });
+        } finally {
+            setIsRevenueLoading(false);
+        }
+    };
+
+    const fetchAiStatus = async () => {
+        try {
+            const status = await api.ai.getStatus();
+            setAiStatus(status);
+        } catch (error) {
+            console.error('Error fetching AI status:', error);
         }
     };
 
     const setAiCacheData = (contactId: string, data: { summary?: string, analysis?: any, lastMessageCount?: number, suggestions?: any[], lastSuggestionCount?: number }) => {
+        const newData = {
+            ...(aiCacheRef.current[contactId] || { summary: '', analysis: null, lastMessageCount: 0, suggestions: [], lastSuggestionCount: 0 }),
+            ...data
+        };
+
+        aiCacheRef.current = {
+            ...aiCacheRef.current,
+            [contactId]: newData
+        };
+
         setAiCache(prev => ({
             ...prev,
-            [contactId]: {
-                ...(prev[contactId] || { summary: '', analysis: null, lastMessageCount: 0, suggestions: [], lastSuggestionCount: 0 }),
-                ...data
-            }
+            [contactId]: newData
         }));
     };
 
@@ -451,6 +721,62 @@ export const StateProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         const id = setInterval(fetchHandoverAlerts, 30000);
         return () => clearInterval(id);
     }, [isAuthenticated]);
+
+    // Poll for AI status every 30 seconds
+    useEffect(() => {
+        if (!isAuthenticated) return;
+        fetchAiStatus();
+        const interval = setInterval(fetchAiStatus, 30000); // Check every 30s
+        return () => clearInterval(interval);
+    }, [isAuthenticated]);
+
+    // Role Helpers
+    const role = user?.role?.toUpperCase() || '';
+    const isAdmin = role === 'SYSTEM_ADMIN' || role === 'ADMIN'; // Fallback for legacy
+    const isTenantAdmin = role === 'TENANT_ADMIN';
+    const isTenantUser = role === 'TENANT_USER';
+
+    const canDelete = isAdmin;
+    const canModifySettings = isAdmin;
+
+    const deletePerson = async (id: string, type: 'CONTACT' | 'LEAD') => {
+        try {
+            await api.crm.deletePerson(id, type);
+            setContacts(prev => prev.filter(c => c.id !== id));
+            setMessages(prev => {
+                const updated = { ...prev };
+                delete updated[id];
+                return updated;
+            });
+            setDeals(prev => prev.filter(d => d.personId !== id));
+            if (activeContactId === id) {
+                setActiveContactId(null);
+            }
+        } catch (error) {
+            console.error('Error deleting person:', error);
+            alert('Failed to delete person');
+        }
+    };
+
+    const deleteCard = async (id: string) => {
+        try {
+            await api.kanban.deleteCard(id);
+            setDeals(prev => prev.filter(d => d.id !== id));
+        } catch (error) {
+            console.error('Error deleting card:', error);
+            alert('Failed to delete card');
+        }
+    };
+
+    const updateCard = async (id: string, updates: { title?: string, value?: number }) => {
+        try {
+            await api.kanban.updateCard(id, updates);
+            setDeals(prev => prev.map(d => d.id === id ? { ...d, ...updates } : d));
+        } catch (error) {
+            console.error('Error updating card:', error);
+            alert('Failed to update card');
+        }
+    };
 
     return (
         <StateContext.Provider value={{
@@ -465,6 +791,13 @@ export const StateProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             sendMessage,
             updateDealStage,
             addTask,
+            updateTask,
+            deleteTask,
+            workflows,
+            addWorkflow,
+            updateWorkflow,
+            deleteWorkflow,
+            triggerWorkflows,
             suggestions,
             refreshSuggestions,
             isRefinedLoading,
@@ -479,10 +812,22 @@ export const StateProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             handoverAlerts,
             fetchHandoverAlerts,
             resolveHandoverAlert,
+            approvePayment,
             refreshData: loadInitialData,
             aiCache,
             setAiCacheData,
-            stages
+            stages,
+            revenueAnalysis,
+            fetchRevenueAnalysis,
+            aiStatus,
+            deletePerson,
+            deleteCard,
+            updateCard,
+            isAdmin,
+            isTenantAdmin,
+            isTenantUser,
+            canDelete,
+            canModifySettings
         }}>
             {children}
         </StateContext.Provider>

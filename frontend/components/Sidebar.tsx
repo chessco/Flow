@@ -8,16 +8,17 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate }) => {
-  const { t, language, logout } = useAppState();
+  const { t, language, logout, contacts, user, isTenantUser } = useAppState();
+  const unreadCount = contacts.filter(c => c.unread).length;
 
   const navItems: { id: NavigationItem; label: string; icon: string; badge?: number }[] = [
     { id: 'dashboard', label: t('navigation.dashboard'), icon: 'dashboard' },
-    { id: 'inbox', label: t('navigation.inbox'), icon: 'inbox', badge: 3 },
+    { id: 'inbox', label: t('navigation.inbox'), icon: 'inbox', badge: unreadCount > 0 ? unreadCount : undefined },
     { id: 'kanban', label: t('navigation.kanban'), icon: 'view_kanban' },
     { id: 'contacts', label: t('navigation.contacts'), icon: 'group' },
     { id: 'tasks', label: t('navigation.tasks'), icon: 'check_box' },
     { id: 'insights', label: t('navigation.insights'), icon: 'bar_chart' },
-    { id: 'settings', label: t('navigation.automations'), icon: 'schema' },
+    { id: 'automations', label: t('navigation.automations'), icon: 'schema' },
   ];
 
   return (
@@ -67,13 +68,15 @@ const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate }) => {
         </button>
 
         <div className="flex flex-col gap-1">
-          <button
-            onClick={() => onNavigate('settings')}
-            className="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors w-full text-left"
-          >
-            <span className="material-symbols-outlined">settings</span>
-            <p className="text-sm font-medium leading-normal">{t('common.settings')}</p>
-          </button>
+          {!isTenantUser && (
+            <button
+              onClick={() => onNavigate('settings')}
+              className="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors w-full text-left"
+            >
+              <span className="material-symbols-outlined">settings</span>
+              <p className="text-sm font-medium leading-normal">{t('common.settings')}</p>
+            </button>
+          )}
           <div className="flex items-center justify-between group">
             <button className="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-left flex-1">
               <div className="w-6 h-6 rounded-full bg-slate-200 overflow-hidden">
@@ -84,8 +87,12 @@ const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate }) => {
                 />
               </div>
               <div className="flex flex-col">
-                <p className="text-sm font-medium leading-none">Admin</p>
-                <p className="text-[10px] text-slate-400">Tenant Admin</p>
+                <p className="text-sm font-medium leading-none truncate max-w-[120px]">
+                  {user?.name || 'Admin'}
+                </p>
+                <p className="text-[10px] text-slate-400 capitalize">
+                  {user?.role?.replace('_', ' ').toLowerCase() || 'Tenant Admin'}
+                </p>
               </div>
             </button>
             <button

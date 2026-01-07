@@ -26,4 +26,11 @@ export class UpdateAiConfigDto {
     @IsOptional()
     @IsNumber()
     maxTokens?: number;
+
+    @IsOptional()
+    rateLimitEnabled?: boolean;
+
+    @IsOptional()
+    @IsString()
+    systemPrompt?: string;
 }

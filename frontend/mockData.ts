@@ -9,7 +9,9 @@ export const mockContacts: Contact[] = [
         company: 'TechFlow',
         avatar: 'https://i.pravatar.cc/150?u=sarahjenkins',
         status: 'online',
-        tags: ['VIP', 'Hot Lead']
+        tags: ['VIP', 'Hot Lead'],
+        personId: 'p1',
+        personType: 'CONTACT'
     },
     {
         id: 'c2',
@@ -19,7 +21,9 @@ export const mockContacts: Contact[] = [
         company: 'Enterprise Corp',
         avatar: 'https://i.pravatar.cc/150?u=john',
         status: 'online',
-        tags: ['Enterprise', 'Hot Lead']
+        tags: ['Enterprise', 'Hot Lead'],
+        personId: 'p2',
+        personType: 'CONTACT'
     },
     {
         id: 'c3',
@@ -29,7 +33,9 @@ export const mockContacts: Contact[] = [
         company: 'Creative Solutions',
         avatar: 'https://i.pravatar.cc/150?u=maria',
         status: 'offline',
-        tags: ['Inbound']
+        tags: ['Inbound'],
+        personId: 'p3',
+        personType: 'CONTACT'
     },
     {
         id: 'c4',
@@ -39,25 +45,27 @@ export const mockContacts: Contact[] = [
         company: 'ScaleUp',
         avatar: 'https://i.pravatar.cc/150?u=david',
         status: 'online',
-        tags: ['High Intent']
+        tags: ['High Intent'],
+        personId: 'p4',
+        personType: 'CONTACT'
     }
 ];
 
 export const mockMessages: Record<string, Message[]> = {
     'c1': [
-        { id: 'm1', text: 'Hi Sarah, thanks for the call earlier.', sender: 'me', timestamp: '10:30 AM' },
-        { id: 'm2', text: 'Thanks for the update. Can we schedule a demo for my CTO next week?', sender: 'them', timestamp: 'Yesterday at 4:30 PM' }
+        { id: 'm1', text: 'Hi Sarah, thanks for the call earlier.', sender: 'me', timestamp: '10:30 AM', createdAt: new Date().toISOString() },
+        { id: 'm2', text: 'Thanks for the update. Can we schedule a demo for my CTO next week?', sender: 'them', timestamp: 'Yesterday at 4:30 PM', createdAt: new Date().toISOString() }
     ],
     'c2': [
-        { id: 'm3', text: 'Hi team, thanks for the demo earlier. I\'d like to get a formal quote for 50 seats on the Enterprise plan.', sender: 'them', timestamp: '10:30 AM' },
-        { id: 'm4', text: 'Absolutely, John. Great to have you on board. Here is the pricing breakdown for 50 seats as discussed.', sender: 'me', timestamp: '10:42 AM' },
-        { id: 'm5', text: 'Enterprise_Quote_Q3.pdf', type: 'file', fileName: 'Enterprise_Quote_Q3.pdf', fileSize: '2.4 MB', sender: 'me', timestamp: '10:42 AM' }
+        { id: 'm3', text: 'Hi team, thanks for the demo earlier. I\'d like to get a formal quote for 50 seats on the Enterprise plan.', sender: 'them', timestamp: '10:30 AM', createdAt: new Date().toISOString() },
+        { id: 'm4', text: 'Absolutely, John. Great to have you on board. Here is the pricing breakdown for 50 seats as discussed.', sender: 'me', timestamp: '10:42 AM', createdAt: new Date().toISOString() },
+        { id: 'm5', text: 'Enterprise_Quote_Q3.pdf', type: 'file', fileName: 'Enterprise_Quote_Q3.pdf', fileSize: '2.4 MB', sender: 'me', timestamp: '10:42 AM', createdAt: new Date().toISOString() }
     ],
     'c3': [
-        { id: 'm6', text: 'Hi, I saw your ad on Facebook about the CRM...', sender: 'them', timestamp: '2m ago' }
+        { id: 'm6', text: 'Hi, I saw your ad on Facebook about the CRM...', sender: 'them', timestamp: '2m ago', createdAt: new Date().toISOString() }
     ],
     'c4': [
-        { id: 'm7', text: 'Does the enterprise plan include API access for...', sender: 'them', timestamp: '2m ago' }
+        { id: 'm7', text: 'Does the enterprise plan include API access for...', sender: 'them', timestamp: '2m ago', createdAt: new Date().toISOString() }
     ]
 };
 
@@ -67,7 +75,7 @@ export const mockDeals: Deal[] = [
         title: 'Enterprise License - TechFlow',
         value: 12500,
         contactName: 'Sarah Jenkins',
-        stage: 'Negociación',
+        stage: 'En Seguimiento',
         probability: 80,
         avatar: 'https://i.pravatar.cc/150?u=sarahjenkins',
         date: 'Oct 12, 2023'
@@ -77,7 +85,7 @@ export const mockDeals: Deal[] = [
         title: '50 Seats Plan - Enterprise Corp',
         value: 22000,
         contactName: 'John Doe',
-        stage: 'Cotización',
+        stage: 'Calificado',
         probability: 50,
         avatar: 'https://i.pravatar.cc/150?u=john',
         date: 'Oct 15, 2023'
@@ -87,7 +95,7 @@ export const mockDeals: Deal[] = [
         title: 'Standard Subscription - Maria Garcia',
         value: 1200,
         contactName: 'Maria Garcia',
-        stage: 'Nuevo',
+        stage: 'Nuevo Lead',
         probability: 10,
         avatar: 'https://i.pravatar.cc/150?u=maria',
         date: 'Oct 18, 2023'

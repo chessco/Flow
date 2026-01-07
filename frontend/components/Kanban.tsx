@@ -3,21 +3,32 @@ import { useAppState } from '../StateContext';
 import { Deal } from '../types';
 
 const Kanban: React.FC = () => {
-  const { deals, updateDealStage, stages } = useAppState();
+  const { deals, updateDealStage, stages, user, deleteCard, updateCard } = useAppState();
+  const [editingDeal, setEditingDeal] = React.useState<Deal | null>(null);
+  const [editForm, setEditForm] = React.useState({ title: '', value: '' });
+
+  const handleEditClick = (deal: Deal, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingDeal(deal);
+    setEditForm({ title: deal.title, value: deal.value.toString() });
+  };
+
+  const handleUpdate = async () => {
+    if (!editingDeal) return;
+    await updateCard(editingDeal.id, {
+      title: editForm.title,
+      value: parseFloat(editForm.value) || 0
+    });
+    setEditingDeal(null);
+  };
 
   const stageColors: Record<string, string> = {
-    'Nuevo': 'bg-blue-500',
-    'Contactado': 'bg-orange-400',
-    'Calificado': 'bg-yellow-400',
-    'Cotización': 'bg-primary',
-    'Negociación': 'bg-indigo-500',
-    'Ganado': 'bg-green-500',
-    'New': 'bg-blue-500',
-    'Contacted': 'bg-orange-400',
-    'Qualified': 'bg-yellow-400',
-    'Proposal': 'bg-primary',
-    'Negotiation': 'bg-indigo-500',
-    'Won': 'bg-green-500',
+    'Nuevo Lead (Meta)': 'bg-blue-500',
+    'En Seguimiento / Info Enviada': 'bg-orange-400',
+    'Calificado / Interesado': 'bg-yellow-400',
+    'Esperando Transferencia': 'bg-primary',
+    'Pago por Verificar': 'bg-indigo-500',
+    'Venta Cerrada / Completado': 'bg-green-500',
   };
 
   const columns = stages.map(stage => ({
@@ -108,9 +119,33 @@ const Kanban: React.FC = () => {
                     >
                       <div className={`absolute top-0 left-0 w-1 h-full ${col.color}`}></div>
 
-                      {col.title === 'Nuevo' && (
+                      {col.title === 'Nuevo Lead (Meta)' && (
                         <div className="absolute top-0 right-0 bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-300 text-[9px] font-bold px-1.5 py-0.5 rounded-bl-lg flex items-center gap-1">
-                          <span className="material-symbols-outlined text-[10px]">auto_awesome</span> Suggestion
+                          <span className="material-symbols-outlined text-[10px]">auto_awesome</span> Nuevo
+                        </div>
+                      )}
+
+                      {(user?.role?.includes('ADMIN')) && (
+                        <div className="absolute bottom-2 right-2 flex gap-1 z-20">
+                          <button
+                            onClick={(e) => handleEditClick(deal, e)}
+                            className="p-1 text-slate-300 hover:text-blue-500 transition-colors bg-white/80 dark:bg-slate-800/80 rounded"
+                            title="Editar tarjeta"
+                          >
+                            <span className="material-symbols-outlined text-sm">edit</span>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (window.confirm('¿Deseas eliminar esta tarjeta? No borrará el contacto, solo la oportunidad en el tablero.')) {
+                                deleteCard(deal.id);
+                              }
+                            }}
+                            className="p-1 text-slate-300 hover:text-red-500 transition-colors bg-white/80 dark:bg-slate-800/80 rounded"
+                            title="Borrar tarjeta"
+                          >
+                            <span className="material-symbols-outlined text-sm">delete</span>
+                          </button>
                         </div>
                       )}
 
@@ -150,6 +185,52 @@ const Kanban: React.FC = () => {
           })}
         </div>
       </div>
+
+      {/* Edit Modal */}
+      {editingDeal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-[#1e2330] rounded-2xl shadow-2xl w-full max-w-md p-6 border border-slate-200 dark:border-slate-700 animate-in fade-in zoom-in-95 duration-200">
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Editar Tarjeta</h3>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Título / Oportunidad</label>
+                <input
+                  type="text"
+                  value={editForm.title}
+                  onChange={e => setEditForm(prev => ({ ...prev, title: e.target.value }))}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary outline-none text-slate-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase mb-1">Valor Venta (USD)</label>
+                <input
+                  type="number"
+                  value={editForm.value}
+                  onChange={e => setEditForm(prev => ({ ...prev, value: e.target.value }))}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary outline-none text-slate-900 dark:text-white"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setEditingDeal(null)}
+                className="px-4 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 text-sm font-medium transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleUpdate}
+                className="px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-white text-sm font-medium transition-colors shadow-lg shadow-primary/20"
+              >
+                Guardar Cambios
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

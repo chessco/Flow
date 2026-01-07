@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class KanbanService {
+    private readonly logger = new Logger(KanbanService.name);
     constructor(private prisma: PrismaService) { }
 
     async getPipeline(tenantId: string) {
@@ -40,6 +41,72 @@ export class KanbanService {
                 ...data,
                 tenantId
             }
+        });
+    }
+
+    async updateCard(tenantId: string, cardId: string, data: { title?: string, value?: number }) {
+        const card = await this.prisma.card.findFirst({
+            where: { id: cardId, tenantId }
+        });
+
+        if (!card) throw new NotFoundException('Card not found');
+
+        return this.prisma.card.update({
+            where: { id: cardId },
+            data
+        });
+    }
+
+    async approvePayment(tenantId: string, alertId: string) {
+        const alert = await this.prisma.handoverAlert.findUnique({
+            where: { id: alertId, tenantId },
+            include: { conversation: true }
+        });
+
+        if (!alert) throw new NotFoundException('Alert not found');
+
+        // 1. Resolve alert
+        await this.prisma.handoverAlert.update({
+            where: { id: alertId },
+            data: { status: 'RESOLVED' }
+        });
+
+        // 2. Find target stage "Venta Cerrada / Completado"
+        const targetStage = await this.prisma.stage.findFirst({
+            where: {
+                pipeline: { tenantId },
+                name: 'Venta Cerrada / Completado'
+            }
+        });
+
+        if (!targetStage) return { success: true, message: 'Alert resolved but target stage not found' };
+
+        // 3. Find card
+        const card = await this.prisma.card.findFirst({
+            where: {
+                tenantId,
+                OR: [
+                    { contactId: alert.conversation.contactId || undefined },
+                    { leadId: alert.conversation.leadId || undefined }
+                ].filter(cond => Object.values(cond)[0] !== undefined)
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        if (card) {
+            await this.prisma.card.update({
+                where: { id: card.id },
+                data: { stageId: targetStage.id }
+            });
+        }
+
+        return { success: true, conversationId: alert.conversationId };
+    }
+
+    async deleteCard(tenantId: string, cardId: string) {
+        this.logger.log(`Deleting card ${cardId} for tenant ${tenantId}`);
+        return this.prisma.card.delete({
+            where: { id: cardId, tenantId }
         });
     }
 }

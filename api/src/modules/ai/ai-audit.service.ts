@@ -22,7 +22,10 @@ export class AiAuditService {
 
     @OnEvent('ai.interaction')
     async handleAiInteraction(event: AiAuditEvent) {
-        this.logger.log(`Audit Log: [${event.action}] by ${event.userId} (Tenant: ${event.tenantId}) - ${event.status} in ${event.latency}ms`);
+        const userId = event.userId || 'SYSTEM';
+        const tenantId = event.tenantId || 'GLOBAL';
+
+        this.logger.log(`[Audit] Action: ${event.action} | User: ${userId} | Tenant: ${tenantId} | Status: ${event.status} | Latency: ${event.latency}ms`);
 
         // In a real production system, we would persist this to a dedicated AiAudit table
         // For now, we log it to the console/logger as a structured event.
