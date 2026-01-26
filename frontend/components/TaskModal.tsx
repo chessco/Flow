@@ -5,13 +5,16 @@ import { Task, Contact } from '../types';
 interface TaskModalProps {
   onClose: () => void;
   task?: Task; // Optional task for editing
+  initialContact?: Contact; // Optional contact to pre-link
 }
 
-const TaskModal: React.FC<TaskModalProps> = ({ onClose, task }) => {
+const TaskModal: React.FC<TaskModalProps> = ({ onClose, task, initialContact }) => {
   const { addTask, updateTask, contacts, t, language } = useAppState();
   const [title, setTitle] = useState(task?.title || '');
-  const [contactName, setContactName] = useState(task?.contactName || '');
-  const [contactAvatar, setContactAvatar] = useState(task?.contactAvatar || '');
+  const [contactName, setContactName] = useState(task?.contactName || initialContact?.name || '');
+  const [contactAvatar, setContactAvatar] = useState(task?.contactAvatar || initialContact?.avatar || '');
+  const [personId, setPersonId] = useState(task?.personId || initialContact?.personId || '');
+  const [personType, setPersonType] = useState<'CONTACT' | 'LEAD' | undefined>(task?.personType || initialContact?.personType);
   const [priority, setPriority] = useState<'Low' | 'Medium' | 'High'>(task?.priority || 'Medium');
   const [showSearchResults, setShowSearchResults] = useState(false);
 
@@ -23,15 +26,25 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, task }) => {
     e.preventDefault();
     if (!title.trim()) return;
 
-    const taskData = {
+    const taskData: any = {
       title,
       contactName: contactName || (language === 'es' ? 'General' : 'General'),
       contactAvatar: contactAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(contactName || 'G')}&background=random`,
       dueDate: task?.dueDate || (language === 'es' ? 'Mañana, 10:00 AM' : 'Tomorrow, 10:00 AM'),
       priority,
       status: task?.status || 'New',
-      assigneeAvatar: task?.assigneeAvatar || 'https://ui-avatars.com/api/?name=User&background=random'
+      assigneeAvatar: task?.assigneeAvatar || 'https://ui-avatars.com/api/?name=User&background=random',
+      personId,
+      personType
     };
+
+    if (personId && personType) {
+      if (personType === 'CONTACT') {
+        taskData.contactId = personId;
+      } else {
+        taskData.leadId = personId;
+      }
+    }
 
     if (task) {
       updateTask(task.id, taskData);
@@ -44,6 +57,8 @@ const TaskModal: React.FC<TaskModalProps> = ({ onClose, task }) => {
   const handleSelectContact = (c: Contact) => {
     setContactName(c.name);
     setContactAvatar(c.avatar);
+    setPersonId(c.personId);
+    setPersonType(c.personType);
     setShowSearchResults(false);
   };
 

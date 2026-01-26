@@ -32,6 +32,10 @@ export interface Task {
   status: 'New' | 'On Track' | 'Breach' | 'Completed';
   assigneeAvatar: string;
   assignedTo?: string;
+  contactId?: string;
+  leadId?: string;
+  personId?: string;
+  personType?: 'CONTACT' | 'LEAD';
 }
 
 export interface Note {

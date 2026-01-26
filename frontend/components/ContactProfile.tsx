@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAppState } from '../StateContext';
 import { Note } from '../types';
 import { api } from '../src/lib/api';
+import TaskModal from './TaskModal';
 
 const ContactProfile: React.FC = () => {
   const { activeContactId, setActiveContactId, contacts, messages, t, language, setActiveItem, stages, tasks, refreshData } = useAppState();
@@ -17,6 +18,7 @@ const ContactProfile: React.FC = () => {
   const [dealFormData, setDealFormData] = useState({ title: '', value: '0' });
   const [isCreatingDeal, setIsCreatingDeal] = useState(false);
   const [isGeneratingTags, setIsGeneratingTags] = useState(false);
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
 
   const contact = contacts.find(c => c.id === activeContactId);
   const contactMessages = activeContactId ? (messages[activeContactId] || []) : [];
@@ -408,7 +410,17 @@ const ContactProfile: React.FC = () => {
 
           {activeTab === 'Tasks' && (
             <div className="flex flex-col gap-4 animate-in fade-in duration-300">
-              {tasks.filter(t => t.contactName === contact.name || (t as any).contactId === contact.personId).length === 0 ? (
+              <div className="flex justify-between items-center px-1">
+                <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">{t('profile.tabs.tasks')}</h4>
+                <button
+                  onClick={() => setIsTaskModalOpen(true)}
+                  className="flex items-center gap-1 text-primary text-xs font-bold hover:underline"
+                >
+                  <span className="material-symbols-outlined text-[16px]">add</span>
+                  {language === 'es' ? 'Nueva Tarea' : 'New Task'}
+                </button>
+              </div>
+              {tasks.filter(t => t.contactName === contact.name || (t as any).contactId === contact.personId || (t as any).leadId === contact.personId).length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 opacity-30">
                   <span className="material-symbols-outlined text-6xl mb-4">assignment_turned_in</span>
                   <p className="text-lg font-bold">{language === 'es' ? 'No hay tareas para este contacto' : 'No tasks for this contact'}</p>
@@ -539,6 +551,7 @@ const ContactProfile: React.FC = () => {
 
       {/* New Deal Modal */}
       {isDealModalOpen && (
+        // ... (existing deal modal logic)
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white dark:bg-[#1e2330] rounded-2xl w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-800 p-8">
             <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">{t('profile.newDeal')}</h2>
@@ -587,6 +600,14 @@ const ContactProfile: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Task Modal */}
+      {isTaskModalOpen && (
+        <TaskModal
+          onClose={() => setIsTaskModalOpen(false)}
+          initialContact={contact}
+        />
       )}
     </div>
   );

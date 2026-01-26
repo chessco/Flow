@@ -8,7 +8,7 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate }) => {
-  const { t, language, logout, contacts, user, isTenantUser } = useAppState();
+  const { t, language, logout, contacts, user, isTenantUser, setActiveSettingsTab } = useAppState();
   const unreadCount = contacts.filter(c => c.unread).length;
 
   const navItems: { id: NavigationItem; label: string; icon: string; badge?: number }[] = [
@@ -78,7 +78,13 @@ const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate }) => {
             </button>
           )}
           <div className="flex items-center justify-between group">
-            <button className="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-left flex-1">
+            <button
+              onClick={() => {
+                onNavigate('settings');
+                setActiveSettingsTab('profile');
+              }}
+              className="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-left flex-1"
+            >
               <div className="w-6 h-6 rounded-full bg-slate-200 overflow-hidden">
                 <img
                   alt="Profile"
@@ -90,7 +96,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate }) => {
                 <p className="text-sm font-medium leading-none truncate max-w-[120px]">
                   {user?.name || 'Admin'}
                 </p>
-                <p className="text-[10px] text-slate-400 capitalize">
+                <p className="text-[10px] text-slate-400 capitalize whitespace-nowrap">
                   {user?.role?.replace('_', ' ').toLowerCase() || 'Tenant Admin'}
                 </p>
               </div>

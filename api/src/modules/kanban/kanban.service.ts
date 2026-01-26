@@ -7,8 +7,43 @@ export class KanbanService {
     constructor(private prisma: PrismaService) { }
 
     async getPipeline(tenantId: string) {
-        return this.prisma.pipeline.findFirst({
+        let pipeline = await this.prisma.pipeline.findFirst({
             where: { tenantId },
+            include: {
+                stages: {
+                    orderBy: { order: 'asc' },
+                    include: {
+                        cards: {
+                            include: { contact: true, lead: true }
+                        }
+                    }
+                }
+            }
+        });
+
+        if (!pipeline) {
+            this.logger.log(`No pipeline found for tenant ${tenantId}, creating default.`);
+            pipeline = await this.createDefaultPipeline(tenantId);
+        }
+
+        return pipeline;
+    }
+
+    private async createDefaultPipeline(tenantId: string) {
+        return this.prisma.pipeline.create({
+            data: {
+                name: 'Flow Board',
+                tenantId,
+                stages: {
+                    create: [
+                        { name: 'Nuevo Lead', order: 1 },
+                        { name: 'En Seguimiento', order: 2 },
+                        { name: 'Calificado', order: 3 },
+                        { name: 'Esperando Transferencia', order: 4 },
+                        { name: 'Venta Cerrada / Completado', order: 5 },
+                    ],
+                },
+            },
             include: {
                 stages: {
                     orderBy: { order: 'asc' },

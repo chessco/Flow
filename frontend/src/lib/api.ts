@@ -1,8 +1,11 @@
-// @ts-ignore
-export const API_BASE_URL = 'http://localhost:3001'; // Forced for local dev synchronization
-console.log('--- PitayaFlow API Configuration (FORCED) ---');
+const envApiUrl = import.meta.env.VITE_API_URL;
+export const API_BASE_URL = envApiUrl || 'http://localhost:3003';
+
+console.log('--- PitayaFlow API Configuration ---');
 console.log('API_BASE_URL:', API_BASE_URL);
+console.log('Mode:', import.meta.env.MODE);
 console.log('-----------------------------------');
+
 
 class PitayaAPI {
     private getHeaders() {
@@ -28,7 +31,8 @@ class PitayaAPI {
             headers: this.getHeaders(),
         });
         if (!response.ok) throw new Error('API Error');
-        return response.json();
+        const text = await response.text();
+        return text ? JSON.parse(text) : null;
     }
 
     async post(endpoint: string, data: any) {
@@ -38,10 +42,25 @@ class PitayaAPI {
             body: JSON.stringify(data),
         });
         if (!response.ok) {
-            const errorData = await response.json();
+            const errorData = await response.json().catch(() => ({ message: 'API Error' }));
             throw new Error(errorData.message || 'API Error');
         }
-        return response.json();
+        const text = await response.text();
+        return text ? JSON.parse(text) : null;
+    }
+
+    async put(endpoint: string, data: any) {
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+            method: 'PUT',
+            headers: this.getHeaders(),
+            body: JSON.stringify(data),
+        });
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ message: 'API Error' }));
+            throw new Error(errorData.message || 'API Error');
+        }
+        const text = await response.text();
+        return text ? JSON.parse(text) : null;
     }
 
     async patch(endpoint: string, data: any) {
@@ -51,10 +70,11 @@ class PitayaAPI {
             body: JSON.stringify(data),
         });
         if (!response.ok) {
-            const errorData = await response.json();
+            const errorData = await response.json().catch(() => ({ message: 'API Error' }));
             throw new Error(errorData.message || 'API Error');
         }
-        return response.json();
+        const text = await response.text();
+        return text ? JSON.parse(text) : null;
     }
 
     async delete(endpoint: string) {
@@ -64,7 +84,8 @@ class PitayaAPI {
             body: JSON.stringify({}) // Some APIS need body even for delete
         });
         if (!response.ok) throw new Error('API Error');
-        return response.json();
+        const text = await response.text();
+        return text ? JSON.parse(text) : null;
     }
 
     // Métodos específicos del dominio
@@ -135,6 +156,14 @@ class PitayaAPI {
             this.post(`/ai/conversation/${conversationId}/managed`, { managed }),
         generateTags: (conversationId: string) =>
             this.post(`/ai/generate-tags/${conversationId}`, {}),
+    };
+
+    users = {
+        getAll: () => this.get('/users'),
+        getOne: (id: string) => this.get(`/users/${id}`),
+        create: (data: any) => this.post('/users', data),
+        update: (id: string, data: any) => this.put(`/users/${id}`, data),
+        remove: (id: string) => this.delete(`/users/${id}`),
     };
 }
 

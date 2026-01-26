@@ -16,7 +16,7 @@ export class WhatsappController {
     @UseGuards(AuthGuard('jwt'), TenantGuard)
     async sendMessage(@Req() req: any, @Body() sendMessageDto: SendMessageDto) {
         const tenantId = req.tenantId;
-        const userId = req.user?.id || 'system';
+        const userId = req.user?.userId || 'system';
         return this.whatsappService.sendMessage(tenantId, userId, sendMessageDto);
     }
 

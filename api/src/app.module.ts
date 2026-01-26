@@ -6,6 +6,7 @@ import { KanbanModule } from './modules/kanban/kanban.module';
 import { AiModule } from './modules/ai/ai.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CRMModule } from './modules/crm/crm.module';
+import { UsersModule } from './modules/users/users.module';
 import { AppGateway } from './app.gateway';
 
 @Module({
@@ -17,6 +18,7 @@ import { AppGateway } from './app.gateway';
         AiModule,
         AuthModule,
         CRMModule,
+        UsersModule,
     ],
     controllers: [],
     providers: [AppGateway],

@@ -40,6 +40,8 @@ export const translations = {
                 general: "General",
                 whatsapp: "WhatsApp Config",
                 ai: "AI Configuration",
+                users: "Users",
+                profile: "My Profile",
                 debug: "Debug Tools"
             }
         },
@@ -222,6 +224,30 @@ export const translations = {
             actions: "Actions",
             noAutomations: "No automations found",
             comingSoon: "Visual Automation Builder coming soon."
+        },
+        users: {
+            title: "Users Management",
+            subtitle: "Manage your team and their access levels.",
+            addUser: "Add User",
+            editUser: "Edit User",
+            deleteUser: "Delete User",
+            confirmDelete: "Are you sure you want to delete this user?",
+            noUsers: "No users found",
+            form: {
+                name: "Full Name",
+                email: "Email Address",
+                password: "Password",
+                role: "Role",
+                save: "Save User",
+            },
+            roles: {
+                system_admin: "System Administrator",
+                admin: "Administrator",
+                manager: "Manager",
+                agent: "Agent",
+                tenant_admin: "Tenant Administrator",
+                tenant_user: "Team Member"
+            }
         }
     },
     es: {
@@ -263,6 +289,8 @@ export const translations = {
                 general: "General",
                 whatsapp: "Configuración WhatsApp",
                 ai: "Configuración IA",
+                users: "Usuarios",
+                profile: "Mi Perfil",
                 debug: "Herramientas de Depuración"
             }
         },
@@ -444,6 +472,30 @@ export const translations = {
                 revenue: "Crecimiento de Ingresos",
                 revenueSub: "Ingresos Proyectados vs Reales esta semana",
                 legend: "Ingresos"
+            }
+        },
+        users: {
+            title: "Gestión de Usuarios",
+            subtitle: "Administra tu equipo y sus niveles de acceso.",
+            addUser: "Añadir Usuario",
+            editUser: "Editar Usuario",
+            deleteUser: "Eliminar Usuario",
+            confirmDelete: "¿Estás seguro de que quieres eliminar este usuario?",
+            noUsers: "No se encontraron usuarios",
+            form: {
+                name: "Nombre Completo",
+                email: "Correo Electrónico",
+                password: "Contraseña",
+                role: "Rol",
+                save: "Guardar Usuario",
+            },
+            roles: {
+                system_admin: "Administrador del Sistema",
+                admin: "Administrador",
+                manager: "Gerente",
+                agent: "Agente",
+                tenant_admin: "Administrador de Empresa",
+                tenant_user: "Miembro del Equipo"
             }
         }
     }
