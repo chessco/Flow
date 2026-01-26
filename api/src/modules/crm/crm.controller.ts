@@ -24,7 +24,7 @@ export class CRMController {
         @Query('type') type: 'CONTACT' | 'LEAD',
         @Body() body: { content: string }
     ) {
-        const userId = req.user.id;
+        const userId = req.user.userId;
         return this.crmService.addNote(personId, type, userId, req.tenantId, body.content);
     }
 

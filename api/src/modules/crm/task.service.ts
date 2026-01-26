@@ -19,18 +19,32 @@ export class TaskService {
     }
 
     async createTask(tenantId: string, data: any) {
+        // Filter data to only include schema-valid fields
+        const validFields = ['title', 'description', 'dueDate', 'status', 'priority', 'contactId', 'leadId'];
+        const filteredData: any = {};
+        validFields.forEach(field => {
+            if (data[field] !== undefined) filteredData[field] = data[field];
+        });
+
         return this.prisma.task.create({
             data: {
-                ...data,
+                ...filteredData,
                 tenantId
             }
         });
     }
 
     async updateTask(tenantId: string, id: string, data: any) {
+        // Filter data to only include schema-valid fields
+        const validFields = ['title', 'description', 'dueDate', 'status', 'priority', 'contactId', 'leadId'];
+        const filteredData: any = {};
+        validFields.forEach(field => {
+            if (data[field] !== undefined) filteredData[field] = data[field];
+        });
+
         return this.prisma.task.update({
             where: { id, tenantId },
-            data
+            data: filteredData
         });
     }
 
