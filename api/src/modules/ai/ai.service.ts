@@ -166,7 +166,7 @@ export class AiService {
         return {
             apiKey: this.configService.get<string>('GOOGLE_AI_API_KEY') || null,
             provider: 'GEMINI',
-            model: 'gemini-1.5-flash'
+            model: 'gemini-1.5-flash-001'
         } as any;
     }
 
