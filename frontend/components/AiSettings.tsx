@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAppState } from '../StateContext';
 import { api } from '../src/lib/api';
+import { AiDebugger } from './AiDebugger';
 
 export const AiSettings: React.FC = () => {
     const { t, canModifySettings } = useAppState();
@@ -244,6 +245,8 @@ export const AiSettings: React.FC = () => {
                     </div>
                 </div>
             </div>
-        </div >
+
+            <AiDebugger config={config} t={t} />
+        </div>
     );
 };

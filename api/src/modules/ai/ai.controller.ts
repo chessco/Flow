@@ -80,4 +80,15 @@ export class AiController {
         const tenantId = req.tenantId;
         return this.aiService.generateTags(tenantId, conversationId);
     }
+
+    @Post('debug')
+    @UseGuards(AuthGuard('jwt'), RolesGuard)
+    @Roles('TENANT_ADMIN', 'SYSTEM_ADMIN')
+    async debugAi(@Body() body: { systemPrompt: string; userPrompt: string; model?: string }) {
+        return this.aiService.generateDebugResponse(
+            body.systemPrompt,
+            body.userPrompt,
+            body.model
+        );
+    }
 }

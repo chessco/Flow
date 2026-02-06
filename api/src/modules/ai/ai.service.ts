@@ -606,6 +606,11 @@ export class AiService {
         if (!conversation) return null;
 
         if (!this.client) {
+            this.logger.warn('AI Client not initialized, attempting lazy init...');
+            this.initializeAI();
+        }
+
+        if (!this.client) {
             return {
                 content: "Hola, soy el asistente virtual de Flow. ¿En qué puedo ayudarte hoy?",
                 handoverRequired: false
@@ -843,6 +848,36 @@ export class AiService {
                 momentum: "ERROR",
                 error: error.message,
                 noCredits: isNoCredits
+            };
+        }
+    }
+
+    async generateDebugResponse(systemPrompt: string, userPrompt: string, model?: string) {
+        if (!this.client) {
+            return { error: 'AI not initialized', status: 'error' };
+        }
+
+        try {
+            const modelName = model || this.modelName;
+
+            // Construct a prompt that effectively uses the system prompt
+            const fullPrompt = `${systemPrompt ? `SYSTEM INSTRUCTIONS:\n${systemPrompt}\n\n` : ''}USER MESSAGE:\n${userPrompt}`;
+
+            const response = await this.client.models.generateContent({
+                model: modelName,
+                contents: [{ role: 'user', parts: [{ text: fullPrompt }] }],
+                // No forced JSON mime type here to allow flexible testing
+            });
+
+            return {
+                status: 'success',
+                text: response.text ? response.text() : "",
+                model: modelName
+            };
+        } catch (error) {
+            return {
+                status: 'error',
+                error: error.message
             };
         }
     }

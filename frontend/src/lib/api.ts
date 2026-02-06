@@ -151,6 +151,7 @@ class PitayaAPI {
         refineText: (text: string) => this.post('/ai/refine', { text }),
         getConfig: () => this.get('/ai/config'),
         updateConfig: (config: any) => this.post('/ai/config', config),
+        debug: (data: { systemPrompt: string; userPrompt: string; model?: string }) => this.post('/ai/debug', data),
         getAlerts: () => this.get('/ai/alerts'),
         getRevenueAnalysis: () => this.get('/ai/revenue-analysis'),
         resolveAlert: (alertId: string) => this.post(`/ai/alerts/${alertId}/resolve`, {}),
