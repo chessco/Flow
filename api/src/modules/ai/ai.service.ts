@@ -23,7 +23,7 @@ export interface AiConfig {
 export class AiService {
     private readonly logger = new Logger(AiService.name);
     private client: any; // GoogleGenAI instance
-    private modelName: string = 'gemini-1.5-flash-001'; // Default to specific version to avoid 404s
+    private modelName: string = 'gemini-2.0-flash-lite-preview-02-05'; // Default to newest lite model <!-- id: 1858 -->
     private systemPrompt: string = '';
     private readonly configPath = path.join(process.cwd(), 'ai-config.json');
     private readonly algorithm = 'aes-256-ctr';
@@ -69,8 +69,8 @@ export class AiService {
             // Let's try passing the version string            // Migration Note: @google/genai v1+ mirrors @google/generative-ai API
             this.client = new GoogleGenAI({ apiKey: apiKey });
 
-            this.modelName = this.getFullConfig().model || 'gemini-1.5-flash-001';
-            this.logger.log(`AI Service initialized with @google/genai SDK with model: ${this.modelName}`);
+            this.modelName = this.getFullConfig().model || 'gemini-2.0-flash-lite-preview-02-05'; <!--id: 1858 -- >
+                this.logger.log(`AI Service initialized with @google/genai SDK with model: ${this.modelName}`);
         } catch (error) {
             this.logger.error(`Failed to initialize AI: ${error.message}`);
         }
@@ -163,98 +163,95 @@ export class AiService {
         } catch (e) {
             this.logger.error('Error reading ai-config.json');
         }
-        return {
-            apiKey: this.configService.get<string>('GOOGLE_AI_API_KEY') || null,
-            provider: 'GEMINI',
-            model: 'gemini-1.5-flash-001'
+        model: 'gemini-2.0-flash-lite-preview-02-05' < !--id: 1858 -- >
         } as any;
     }
 
     public async updateConfig(newConfig: Partial<AiConfig>) {
-        try {
-            let currentConfig = {};
-            if (fs.existsSync(this.configPath)) {
-                currentConfig = JSON.parse(fs.readFileSync(this.configPath, 'utf8'));
-            }
-
-            const configToSave = { ...currentConfig, ...newConfig };
-            if (newConfig.apiKey) {
-                const trimmedKey = newConfig.apiKey.trim();
-                this.logger.log(`Saving new API Key: ${trimmedKey.substring(0, 5)}...`);
-                configToSave.apiKey = this.encrypt(trimmedKey);
-            }
-
-            fs.writeFileSync(this.configPath, JSON.stringify(configToSave, null, 2));
-            this.logger.log('AI Config updated successfully');
-
-            // Re-initialize AI with new config
-            this.initializeAI();
-
-            return { success: true };
-        } catch (e) {
-            this.logger.error(`Error updating AI config: ${e.message}`, e.stack);
-            return { success: false, error: e.message };
+    try {
+        let currentConfig = {};
+        if (fs.existsSync(this.configPath)) {
+            currentConfig = JSON.parse(fs.readFileSync(this.configPath, 'utf8'));
         }
+
+        const configToSave = { ...currentConfig, ...newConfig };
+        if (newConfig.apiKey) {
+            const trimmedKey = newConfig.apiKey.trim();
+            this.logger.log(`Saving new API Key: ${trimmedKey.substring(0, 5)}...`);
+            configToSave.apiKey = this.encrypt(trimmedKey);
+        }
+
+        fs.writeFileSync(this.configPath, JSON.stringify(configToSave, null, 2));
+        this.logger.log('AI Config updated successfully');
+
+        // Re-initialize AI with new config
+        this.initializeAI();
+
+        return { success: true };
+    } catch (e) {
+        this.logger.error(`Error updating AI config: ${e.message}`, e.stack);
+        return { success: false, error: e.message };
     }
+}
 
     public async updateApiKey(key: string) {
-        return this.updateConfig({ apiKey: key });
-    }
+    return this.updateConfig({ apiKey: key });
+}
 
     /**
      * Previene la fuga de PII y aplica políticas de uso.
      */
     private applyGuardrails(text: string): string {
-        return text.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[EMAIL_REDACTED]')
-            .replace(/\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b/g, '[CARD_REDACTED]');
-    }
+    return text.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '[EMAIL_REDACTED]')
+        .replace(/\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b/g, '[CARD_REDACTED]');
+}
 
     private emitAudit(event: any) {
-        this.eventEmitter.emit('ai.interaction', {
-            ...event,
-            model: this.modelName,
-            timestamp: new Date()
-        });
-    }
+    this.eventEmitter.emit('ai.interaction', {
+        ...event,
+        model: this.modelName,
+        timestamp: new Date()
+    });
+}
 
     /**
      * Sugiere respuestas basadas en el contexto de la conversación.
      */
     async suggestReplies(tenantId: string, id: string) {
-        const startTime = Date.now();
-        // Move rate limit check inside try catch or handle gracefully
-        if (!this.checkRateLimit()) {
-            this.logger.warn('Rate limit reached for suggestReplies, returning mock data.');
-            return this.getMockSuggestions('');
-        }
+    const startTime = Date.now();
+    // Move rate limit check inside try catch or handle gracefully
+    if (!this.checkRateLimit()) {
+        this.logger.warn('Rate limit reached for suggestReplies, returning mock data.');
+        return this.getMockSuggestions('');
+    }
 
-        const conversation = await this.prisma.conversation.findFirst({
-            where: {
-                tenantId,
-                OR: [{ id }, { leadId: id }, { contactId: id }]
-            },
-            include: {
-                messages: {
-                    orderBy: { createdAt: 'desc' },
-                    take: 10
-                }
+    const conversation = await this.prisma.conversation.findFirst({
+        where: {
+            tenantId,
+            OR: [{ id }, { leadId: id }, { contactId: id }]
+        },
+        include: {
+            messages: {
+                orderBy: { createdAt: 'desc' },
+                take: 10
             }
-        });
-
-        if (!conversation || conversation.messages.length === 0) {
-            return this.getMockSuggestions('');
         }
+    });
 
-        if (!this.client) {
-            return this.getMockSuggestions(conversation.messages[0].content);
-        }
+    if (!conversation || conversation.messages.length === 0) {
+        return this.getMockSuggestions('');
+    }
 
-        try {
-            const context = [...conversation.messages].reverse().map(m =>
-                `${m.senderType === 'CONTACT' ? 'Usuario' : 'Agente'}: ${this.applyGuardrails(m.content)}`
-            ).join('\n');
+    if (!this.client) {
+        return this.getMockSuggestions(conversation.messages[0].content);
+    }
 
-            const prompt = `Eres un asistente de ventas experto. Basado en esta conversación de WhatsApp, sugiere 3 respuestas cortas y efectivas en formato JSON. 
+    try {
+        const context = [...conversation.messages].reverse().map(m =>
+            `${m.senderType === 'CONTACT' ? 'Usuario' : 'Agente'}: ${this.applyGuardrails(m.content)}`
+        ).join('\n');
+
+        const prompt = `Eres un asistente de ventas experto. Basado en esta conversación de WhatsApp, sugiere 3 respuestas cortas y efectivas en formato JSON. 
             Cada respuesta debe tener un "tone" (ej: Amigable, Formal, Directo, Consultivo) y un "text".
             Idioma: Español.
             
@@ -263,241 +260,241 @@ export class AiService {
             
             JSON format: [{"tone": "...", "text": "..."}, ...]`;
 
-            if (!this.client) {
-                this.initializeAI();
-                if (!this.client) throw new Error('AI not initialized');
-            }
-
-            const result = await this.client.models.generateContent({
-                model: this.modelName,
-                contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                config: {
-                    responseMimeType: 'application/json'
-                }
-            });
-            const text = result.text ? result.text() : "{}";
-
-            this.emitAudit({
-                tenantId,
-                action: 'suggest_replies',
-                latency: Date.now() - startTime,
-                status: 'success',
-                conversationId: conversation.id
-            });
-
-            const jsonMatch = text.match(/\[.*\]/s);
-            if (jsonMatch) {
-                return JSON.parse(jsonMatch[0]);
-            }
-
-            return this.getMockSuggestions(conversation.messages[0].content);
-        } catch (error) {
-            this.emitAudit({
-                tenantId,
-                action: 'suggest_replies',
-                latency: Date.now() - startTime,
-                status: 'error',
-                error: error.message
-            });
-            this.logger.error(`Error with Gemini suggestReplies: ${error.message}`);
-
-            const isNoCredits = error.message.includes('429') || error.message.toLowerCase().includes('quota');
-            if (isNoCredits) {
-                await this.createSystemAlert(tenantId, 'ERROR SISTEMA: IA Gemini - Límite de cuota alcanzado (Suggestions)', id);
-            } else if (error.message.includes('401') || error.message.includes('403')) {
-                await this.createSystemAlert(tenantId, 'ERROR SISTEMA: IA Gemini - API Key inválida o expirada (Suggestions)', id);
-            }
-
-            return this.getMockSuggestions(conversation.messages[0].content);
+        if (!this.client) {
+            this.initializeAI();
+            if (!this.client) throw new Error('AI not initialized');
         }
+
+        const result = await this.client.models.generateContent({
+            model: this.modelName,
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            config: {
+                responseMimeType: 'application/json'
+            }
+        });
+        const text = result.text ? result.text() : "{}";
+
+        this.emitAudit({
+            tenantId,
+            action: 'suggest_replies',
+            latency: Date.now() - startTime,
+            status: 'success',
+            conversationId: conversation.id
+        });
+
+        const jsonMatch = text.match(/\[.*\]/s);
+        if (jsonMatch) {
+            return JSON.parse(jsonMatch[0]);
+        }
+
+        return this.getMockSuggestions(conversation.messages[0].content);
+    } catch (error) {
+        this.emitAudit({
+            tenantId,
+            action: 'suggest_replies',
+            latency: Date.now() - startTime,
+            status: 'error',
+            error: error.message
+        });
+        this.logger.error(`Error with Gemini suggestReplies: ${error.message}`);
+
+        const isNoCredits = error.message.includes('429') || error.message.toLowerCase().includes('quota');
+        if (isNoCredits) {
+            await this.createSystemAlert(tenantId, 'ERROR SISTEMA: IA Gemini - Límite de cuota alcanzado (Suggestions)', id);
+        } else if (error.message.includes('401') || error.message.includes('403')) {
+            await this.createSystemAlert(tenantId, 'ERROR SISTEMA: IA Gemini - API Key inválida o expirada (Suggestions)', id);
+        }
+
+        return this.getMockSuggestions(conversation.messages[0].content);
     }
+}
 
     private getMockSuggestions(content: string) {
-        const lowContent = content.toLowerCase();
-        if (lowContent.includes('hola') || !content) {
-            return [
-                { tone: 'Amigable', text: '¡Hola! Qué gusto saludarte. ¿Cómo puedo ayudarte hoy?' },
-                { tone: 'Formal', text: 'Buen día. Gracias por contactarnos, ¿en qué podemos asistirle?' },
-                { tone: 'Asistente', text: 'Hola, soy el asistente virtual de Flow. ¿Buscas información sobre nuestros servicios?' }
-            ];
-        }
+    const lowContent = content.toLowerCase();
+    if (lowContent.includes('hola') || !content) {
         return [
-            { tone: 'Cortés', text: 'Entendido. Ya estamos revisando esto por ti.' },
-            { tone: 'Duda', text: '¿Podrías darme más detalles al respecto?' },
-            { tone: 'Espera', text: 'Permíteme un momento, estoy verificando la información.' }
+            { tone: 'Amigable', text: '¡Hola! Qué gusto saludarte. ¿Cómo puedo ayudarte hoy?' },
+            { tone: 'Formal', text: 'Buen día. Gracias por contactarnos, ¿en qué podemos asistirle?' },
+            { tone: 'Asistente', text: 'Hola, soy el asistente virtual de Flow. ¿Buscas información sobre nuestros servicios?' }
         ];
     }
+    return [
+        { tone: 'Cortés', text: 'Entendido. Ya estamos revisando esto por ti.' },
+        { tone: 'Duda', text: '¿Podrías darme más detalles al respecto?' },
+        { tone: 'Espera', text: 'Permíteme un momento, estoy verificando la información.' }
+    ];
+}
 
     /**
      * Analiza el sentimiento y la intención del último mensaje.
      */
     async analyzeMessage(messageId: string) {
-        this.logger.log(`Analizando mensaje ${messageId} para detección de intención`);
-    }
+    this.logger.log(`Analizando mensaje ${messageId} para detección de intención`);
+}
 
     /**
      * Resume una conversación completa.
      */
     async summarizeConversation(conversationId: string) {
-        const startTime = Date.now();
-        if (!this.checkRateLimit()) {
-            return "Límite de rate limit alcanzado (15 RPM). Por favor espere un momento.";
-        }
-        if (!this.client) return "Conversación activa. No hay resumen disponible sin configuración de IA.";
-
-        try {
-            const messages = await this.prisma.message.findMany({
-                where: { conversationId },
-                orderBy: { createdAt: 'asc' },
-                take: 50
-            });
-
-            if (messages.length === 0) return "Sin mensajes para resumir.";
-
-            const context = messages.map(m => `${m.senderType}: ${this.applyGuardrails(m.content)}`).join('\n');
-            const prompt = `Resume esta conversación de WhatsApp en 2 oraciones cortas resaltando el interés del cliente y el estado del trato:\n\n${context}`;
-
-            const response = await this.client.models.generateContent({
-                model: this.modelName,
-                contents: [{ role: 'user', parts: [{ text: prompt }] }]
-            });
-            const summary = response.text ? response.text() : "Resumen no disponible";
-
-            this.emitAudit({
-                tenantId: 'system', // Summarize usually global or triggered locally
-                action: 'summarize',
-                latency: Date.now() - startTime,
-                status: 'success',
-                conversationId
-            });
-
-            return { summary };
-        } catch (error) {
-            this.emitAudit({
-                tenantId: 'system',
-                action: 'summarize',
-                latency: Date.now() - startTime,
-                status: 'error',
-                error: error.message
-            });
-            this.logger.error(`Error summarizing: ${error.message}`);
-
-            const isNoCredits = error.message.includes('429') || error.message.toLowerCase().includes('quota');
-            if (isNoCredits) {
-                await this.createSystemAlert('system', 'ERROR SISTEMA: IA Gemini - Límite de cuota alcanzado (Summary)', conversationId);
-            } else if (error.message.includes('401') || error.message.includes('403')) {
-                await this.createSystemAlert('system', 'ERROR SISTEMA: IA Gemini - API Key inválida o expirada (Summary)', conversationId);
-            }
-
-            return "Error al generar resumen.";
-        }
+    const startTime = Date.now();
+    if (!this.checkRateLimit()) {
+        return "Límite de rate limit alcanzado (15 RPM). Por favor espere un momento.";
     }
+    if (!this.client) return "Conversación activa. No hay resumen disponible sin configuración de IA.";
+
+    try {
+        const messages = await this.prisma.message.findMany({
+            where: { conversationId },
+            orderBy: { createdAt: 'asc' },
+            take: 50
+        });
+
+        if (messages.length === 0) return "Sin mensajes para resumir.";
+
+        const context = messages.map(m => `${m.senderType}: ${this.applyGuardrails(m.content)}`).join('\n');
+        const prompt = `Resume esta conversación de WhatsApp en 2 oraciones cortas resaltando el interés del cliente y el estado del trato:\n\n${context}`;
+
+        const response = await this.client.models.generateContent({
+            model: this.modelName,
+            contents: [{ role: 'user', parts: [{ text: prompt }] }]
+        });
+        const summary = response.text ? response.text() : "Resumen no disponible";
+
+        this.emitAudit({
+            tenantId: 'system', // Summarize usually global or triggered locally
+            action: 'summarize',
+            latency: Date.now() - startTime,
+            status: 'success',
+            conversationId
+        });
+
+        return { summary };
+    } catch (error) {
+        this.emitAudit({
+            tenantId: 'system',
+            action: 'summarize',
+            latency: Date.now() - startTime,
+            status: 'error',
+            error: error.message
+        });
+        this.logger.error(`Error summarizing: ${error.message}`);
+
+        const isNoCredits = error.message.includes('429') || error.message.toLowerCase().includes('quota');
+        if (isNoCredits) {
+            await this.createSystemAlert('system', 'ERROR SISTEMA: IA Gemini - Límite de cuota alcanzado (Summary)', conversationId);
+        } else if (error.message.includes('401') || error.message.includes('403')) {
+            await this.createSystemAlert('system', 'ERROR SISTEMA: IA Gemini - API Key inválida o expirada (Summary)', conversationId);
+        }
+
+        return "Error al generar resumen.";
+    }
+}
 
     /**
      * Refina un texto para hacerlo más profesional.
      */
     async refineText(text: string) {
-        const startTime = Date.now();
-        if (!text || text.length < 3) return { refined: text };
-        if (!this.checkRateLimit()) {
-            return { refined: text, error: 'Rate limit reached' };
-        }
-
-        if (!this.client) {
-            return this.getMockRefinement(text);
-        }
-
-        try {
-            const safeText = this.applyGuardrails(text);
-            const prompt = `Convierte este mensaje informal en uno profesional y amable para WhatsApp, manteniendo el sentido original pero mejorando la ortografía y el tono. Solo devuelve el texto refinado, sin explicaciones.\n\nMensaje: ${safeText}`;
-
-            const response = await this.client.models.generateContent({
-                model: this.modelName,
-                contents: [{ role: 'user', parts: [{ text: prompt }] }]
-            });
-            const refinedText = response.text ? response.text().trim() : safeText;
-
-            this.emitAudit({
-                tenantId: 'system',
-                action: 'refine',
-                latency: Date.now() - startTime,
-                status: 'success'
-            });
-
-            return {
-                original: text,
-                refined: refinedText
-            };
-        } catch (error) {
-            this.emitAudit({
-                tenantId: 'system',
-                action: 'refine',
-                latency: Date.now() - startTime,
-                status: 'error',
-                error: error.message
-            });
-            return this.getMockRefinement(text);
-        }
+    const startTime = Date.now();
+    if (!text || text.length < 3) return { refined: text };
+    if (!this.checkRateLimit()) {
+        return { refined: text, error: 'Rate limit reached' };
     }
 
-    async analyzeImageForPayment(caption?: string) {
-        if (!caption || caption === '[IMAGE Media Received]') return false;
-
-        const paymentKeywords = [
-            'pago', 'comprobante', 'transferencia', 'recibo', 'baucher', 'voucher',
-            'ticket', 'depósito', 'deposito', 'yape', 'plin', 'screenshot', 'captura'
-        ];
-
-        const lowercaseCaption = caption.toLowerCase();
-        const isLikelyPayment = paymentKeywords.some(keyword => lowercaseCaption.includes(keyword));
-
-        if (isLikelyPayment) {
-            this.logger.log(`Payment detected in image caption: "${caption}"`);
-            return true;
-        }
-
-        return false;
+    if (!this.client) {
+        return this.getMockRefinement(text);
     }
+
+    try {
+        const safeText = this.applyGuardrails(text);
+        const prompt = `Convierte este mensaje informal en uno profesional y amable para WhatsApp, manteniendo el sentido original pero mejorando la ortografía y el tono. Solo devuelve el texto refinado, sin explicaciones.\n\nMensaje: ${safeText}`;
+
+        const response = await this.client.models.generateContent({
+            model: this.modelName,
+            contents: [{ role: 'user', parts: [{ text: prompt }] }]
+        });
+        const refinedText = response.text ? response.text().trim() : safeText;
+
+        this.emitAudit({
+            tenantId: 'system',
+            action: 'refine',
+            latency: Date.now() - startTime,
+            status: 'success'
+        });
+
+        return {
+            original: text,
+            refined: refinedText
+        };
+    } catch (error) {
+        this.emitAudit({
+            tenantId: 'system',
+            action: 'refine',
+            latency: Date.now() - startTime,
+            status: 'error',
+            error: error.message
+        });
+        return this.getMockRefinement(text);
+    }
+}
+
+    async analyzeImageForPayment(caption ?: string) {
+    if (!caption || caption === '[IMAGE Media Received]') return false;
+
+    const paymentKeywords = [
+        'pago', 'comprobante', 'transferencia', 'recibo', 'baucher', 'voucher',
+        'ticket', 'depósito', 'deposito', 'yape', 'plin', 'screenshot', 'captura'
+    ];
+
+    const lowercaseCaption = caption.toLowerCase();
+    const isLikelyPayment = paymentKeywords.some(keyword => lowercaseCaption.includes(keyword));
+
+    if (isLikelyPayment) {
+        this.logger.log(`Payment detected in image caption: "${caption}"`);
+        return true;
+    }
+
+    return false;
+}
 
     async analyzeContext(conversationId: string) {
-        const startTime = Date.now();
-        if (!this.checkRateLimit()) {
-            return { nextBestAction: "Rate limit reached (15 RPM). Please wait.", intent: "Límite alcanzado" };
-        }
-        if (!this.client) return { nextBestAction: "Configure AI to enable analysis", intent: "Unknown" };
+    const startTime = Date.now();
+    if (!this.checkRateLimit()) {
+        return { nextBestAction: "Rate limit reached (15 RPM). Please wait.", intent: "Límite alcanzado" };
+    }
+    if (!this.client) return { nextBestAction: "Configure AI to enable analysis", intent: "Unknown" };
 
-        try {
-            const messages = await this.prisma.message.findMany({
-                where: { conversationId },
-                orderBy: { createdAt: 'asc' },
-                take: 50
-            });
+    try {
+        const messages = await this.prisma.message.findMany({
+            where: { conversationId },
+            orderBy: { createdAt: 'asc' },
+            take: 50
+        });
 
-            if (messages.length === 0) return { nextBestAction: "No messages to analyze", intent: "None" };
+        if (messages.length === 0) return { nextBestAction: "No messages to analyze", intent: "None" };
 
-            const conversation = await this.prisma.conversation.findUnique({
-                where: { id: conversationId },
-                select: { contactId: true, leadId: true, tenantId: true }
-            });
+        const conversation = await this.prisma.conversation.findUnique({
+            where: { id: conversationId },
+            select: { contactId: true, leadId: true, tenantId: true }
+        });
 
-            const card = await this.prisma.card.findFirst({
-                where: {
-                    OR: [
-                        { contactId: conversation?.contactId, tenantId: conversation?.tenantId },
-                        { leadId: conversation?.leadId, tenantId: conversation?.tenantId }
-                    ].filter(q => q && (q.contactId || q.leadId)) as any
-                },
-                include: { stage: true }
-            });
+        const card = await this.prisma.card.findFirst({
+            where: {
+                OR: [
+                    { contactId: conversation?.contactId, tenantId: conversation?.tenantId },
+                    { leadId: conversation?.leadId, tenantId: conversation?.tenantId }
+                ].filter(q => q && (q.contactId || q.leadId)) as any
+            },
+            include: { stage: true }
+        });
 
-            const currentStageName = card?.stage?.name || 'Nuevo Lead (Meta)';
-            const currentStageOrder = card?.stage?.order || 1;
+        const currentStageName = card?.stage?.name || 'Nuevo Lead (Meta)';
+        const currentStageOrder = card?.stage?.order || 1;
 
-            const context = messages.map(m => `${m.senderType}: ${this.applyGuardrails(m.content)}`).join('\n');
-            const config = this.getFullConfig();
-            const systemInstructions = config.systemPrompt ? `Instrucciones del Sistema:\n${config.systemPrompt}\n\n` : '';
+        const context = messages.map(m => `${m.senderType}: ${this.applyGuardrails(m.content)}`).join('\n');
+        const config = this.getFullConfig();
+        const systemInstructions = config.systemPrompt ? `Instrucciones del Sistema:\n${config.systemPrompt}\n\n` : '';
 
-            const prompt = `${systemInstructions}Analyze this WhatsApp conversation and extract the following in JSON format:
+        const prompt = `${systemInstructions}Analyze this WhatsApp conversation and extract the following in JSON format:
             {
                 "nextBestAction": "A specific, actionable recommendation for the agent (max 15 words) in Spanish",
                 "intent": "The customer's primary intent (e.g., Venta, Soporte, Información, Reclamo) in Spanish",
@@ -516,139 +513,139 @@ export class AiService {
             Conversation:
             ${context}`;
 
-            const apiResponse = await this.client.models.generateContent({
-                model: this.modelName,
-                contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                config: { responseMimeType: 'application/json' }
-            });
+        const apiResponse = await this.client.models.generateContent({
+            model: this.modelName,
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            config: { responseMimeType: 'application/json' }
+        });
 
-            const text = apiResponse.text ? apiResponse.text() : "{}";
-            const jsonText = text.replace(/```json/g, '').replace(/```/g, '').trim();
-            const analysis = JSON.parse(jsonText);
+        const text = apiResponse.text ? apiResponse.text() : "{}";
+        const jsonText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+        const analysis = JSON.parse(jsonText);
 
-            // AUTO-UPDATE CARD VALUE if price/budget is detected
-            const extractedBudget = analysis.extractedData?.budget;
-            if (extractedBudget && card) {
-                // Strip currency symbols and commas, keep dots for decimals
-                const cleanedBudget = String(extractedBudget).replace(/[^0-9.]/g, '');
-                const numericValue = parseFloat(cleanedBudget);
+        // AUTO-UPDATE CARD VALUE if price/budget is detected
+        const extractedBudget = analysis.extractedData?.budget;
+        if (extractedBudget && card) {
+            // Strip currency symbols and commas, keep dots for decimals
+            const cleanedBudget = String(extractedBudget).replace(/[^0-9.]/g, '');
+            const numericValue = parseFloat(cleanedBudget);
 
-                if (!isNaN(numericValue) && numericValue > 0) {
-                    await this.prisma.card.update({
-                        where: { id: card.id },
-                        data: { value: numericValue }
-                    });
-                    this.logger.log(`Auto-updated Card ${card.id} value to ${numericValue} from AI analysis (Raw: ${extractedBudget})`);
-                }
+            if (!isNaN(numericValue) && numericValue > 0) {
+                await this.prisma.card.update({
+                    where: { id: card.id },
+                    data: { value: numericValue }
+                });
+                this.logger.log(`Auto-updated Card ${card.id} value to ${numericValue} from AI analysis (Raw: ${extractedBudget})`);
             }
-
-            // AUTO-UPDATE CONTACT/LEAD EMAIL if detected
-            const extractedEmail = analysis.extractedData?.email;
-            if (extractedEmail && (card?.contactId || card?.leadId || conversation?.contactId || conversation?.leadId)) {
-                const personId = card?.contactId || card?.leadId || conversation?.contactId || conversation?.leadId;
-                const personType = (card?.contactId || conversation?.contactId) ? 'contact' : 'lead';
-
-                if (personId) {
-                    if (personType === 'contact') {
-                        await this.prisma.contact.update({
-                            where: { id: personId },
-                            data: { email: extractedEmail }
-                        });
-                    } else {
-                        await this.prisma.lead.update({
-                            where: { id: personId },
-                            data: { email: extractedEmail }
-                        });
-                    }
-                    this.logger.log(`Auto-updated ${personType} ${personId} email to ${extractedEmail} from AI analysis`);
-                }
-            }
-
-            this.emitAudit({
-                tenantId: 'system',
-                action: 'analyze_context',
-                latency: Date.now() - startTime,
-                status: 'success',
-                conversationId
-            });
-
-            return analysis;
-        } catch (error) {
-            this.emitAudit({
-                tenantId: 'system',
-                action: 'analyze_context',
-                latency: Date.now() - startTime,
-                status: 'error',
-                error: error.message
-            });
-            this.logger.error(`Error analyzing context: ${error.message}`);
-
-            const isNoCredits = error.message.includes('429') || error.message.toLowerCase().includes('quota');
-            if (isNoCredits) {
-                await this.createSystemAlert('system', 'ERROR SISTEMA: IA Gemini - Límite de cuota alcanzado (Analysis)');
-            } else if (error.message.includes('401') || error.message.includes('403')) {
-                await this.createSystemAlert('system', 'ERROR SISTEMA: IA Gemini - API Key inválida o expirada (Analysis)');
-            }
-
-            return { nextBestAction: "Analysis failed", intent: "Error" };
         }
+
+        // AUTO-UPDATE CONTACT/LEAD EMAIL if detected
+        const extractedEmail = analysis.extractedData?.email;
+        if (extractedEmail && (card?.contactId || card?.leadId || conversation?.contactId || conversation?.leadId)) {
+            const personId = card?.contactId || card?.leadId || conversation?.contactId || conversation?.leadId;
+            const personType = (card?.contactId || conversation?.contactId) ? 'contact' : 'lead';
+
+            if (personId) {
+                if (personType === 'contact') {
+                    await this.prisma.contact.update({
+                        where: { id: personId },
+                        data: { email: extractedEmail }
+                    });
+                } else {
+                    await this.prisma.lead.update({
+                        where: { id: personId },
+                        data: { email: extractedEmail }
+                    });
+                }
+                this.logger.log(`Auto-updated ${personType} ${personId} email to ${extractedEmail} from AI analysis`);
+            }
+        }
+
+        this.emitAudit({
+            tenantId: 'system',
+            action: 'analyze_context',
+            latency: Date.now() - startTime,
+            status: 'success',
+            conversationId
+        });
+
+        return analysis;
+    } catch (error) {
+        this.emitAudit({
+            tenantId: 'system',
+            action: 'analyze_context',
+            latency: Date.now() - startTime,
+            status: 'error',
+            error: error.message
+        });
+        this.logger.error(`Error analyzing context: ${error.message}`);
+
+        const isNoCredits = error.message.includes('429') || error.message.toLowerCase().includes('quota');
+        if (isNoCredits) {
+            await this.createSystemAlert('system', 'ERROR SISTEMA: IA Gemini - Límite de cuota alcanzado (Analysis)');
+        } else if (error.message.includes('401') || error.message.includes('403')) {
+            await this.createSystemAlert('system', 'ERROR SISTEMA: IA Gemini - API Key inválida o expirada (Analysis)');
+        }
+
+        return { nextBestAction: "Analysis failed", intent: "Error" };
     }
+}
 
     /**
      * Genera una respuesta autónoma y detecta si se requiere intervención humana.
      */
-    async generateAutonomousResponse(tenantId: string, conversationId: string, additionalInstructions?: string) {
-        const startTime = Date.now();
-        if (!this.checkRateLimit()) {
-            return { content: "Límite de solicitudes AI alcanzado. Un agente revisará pronto.", handoverRequired: true };
-        }
+    async generateAutonomousResponse(tenantId: string, conversationId: string, additionalInstructions ?: string) {
+    const startTime = Date.now();
+    if (!this.checkRateLimit()) {
+        return { content: "Límite de solicitudes AI alcanzado. Un agente revisará pronto.", handoverRequired: true };
+    }
 
-        const conversation = await this.prisma.conversation.findUnique({
-            where: { id: conversationId },
-            include: {
-                messages: {
-                    orderBy: { createdAt: 'desc' },
-                    take: 50
-                }
+    const conversation = await this.prisma.conversation.findUnique({
+        where: { id: conversationId },
+        include: {
+            messages: {
+                orderBy: { createdAt: 'desc' },
+                take: 50
             }
+        }
+    });
+
+    if (!conversation) return null;
+
+    if (!this.client) {
+        this.logger.warn('AI Client not initialized, attempting lazy init...');
+        this.initializeAI();
+    }
+
+    if (!this.client) {
+        return {
+            content: "Hola, soy el asistente virtual de Flow. ¿En qué puedo ayudarte hoy?",
+            handoverRequired: false
+        };
+    }
+
+    try {
+        const card = await this.prisma.card.findFirst({
+            where: {
+                OR: [
+                    { contactId: conversation.contactId, tenantId },
+                    { leadId: conversation.leadId, tenantId }
+                ].filter(q => q && (q.contactId || q.leadId)) as any
+            },
+            include: { stage: true }
         });
 
-        if (!conversation) return null;
+        const currentStageName = card?.stage?.name || 'Nuevo Lead (Meta)';
 
-        if (!this.client) {
-            this.logger.warn('AI Client not initialized, attempting lazy init...');
-            this.initializeAI();
-        }
+        const context = [...conversation.messages].reverse().map(m =>
+            `${m.senderType === 'CONTACT' ? 'Usuario' : 'Agente'}: ${this.applyGuardrails(m.content)}`
+        ).join('\n');
 
-        if (!this.client) {
-            return {
-                content: "Hola, soy el asistente virtual de Flow. ¿En qué puedo ayudarte hoy?",
-                handoverRequired: false
-            };
-        }
-
-        try {
-            const card = await this.prisma.card.findFirst({
-                where: {
-                    OR: [
-                        { contactId: conversation.contactId, tenantId },
-                        { leadId: conversation.leadId, tenantId }
-                    ].filter(q => q && (q.contactId || q.leadId)) as any
-                },
-                include: { stage: true }
-            });
-
-            const currentStageName = card?.stage?.name || 'Nuevo Lead (Meta)';
-
-            const context = [...conversation.messages].reverse().map(m =>
-                `${m.senderType === 'CONTACT' ? 'Usuario' : 'Agente'}: ${this.applyGuardrails(m.content)}`
-            ).join('\n');
-
-            const config = this.getFullConfig();
-            const systemInstructions = config.systemPrompt || `Eres un asistente virtual experto para una empresa llamada Flow. 
+        const config = this.getFullConfig();
+        const systemInstructions = config.systemPrompt || `Eres un asistente virtual experto para una empresa llamada Flow. 
             Tu objetivo es ayudar al usuario de forma amable y profesional por WhatsApp.`;
 
-            const prompt = `${systemInstructions}
+        const prompt = `${systemInstructions}
             
             ${additionalInstructions ? `INSTRUCCIONES ADICIONALES:\n${additionalInstructions}\n\n` : ''}
             INFORMACIÓN DE ESTADO:
@@ -677,142 +674,142 @@ export class AiService {
 
             Responde ÚNICAMENTE con el objeto JSON.`;
 
-            console.log('[AI Debug] Raw Autonomous Prompt:', prompt);
+        console.log('[AI Debug] Raw Autonomous Prompt:', prompt);
 
-            const apiResponse = await this.client.models.generateContent({
-                model: this.modelName,
-                contents: prompt,
-                config: { responseMimeType: 'application/json' }
-            });
+        const apiResponse = await this.client.models.generateContent({
+            model: this.modelName,
+            contents: prompt,
+            config: { responseMimeType: 'application/json' }
+        });
 
-            const text = apiResponse.text ? apiResponse.text() : "{}";
-            console.log('[AI Debug] Raw Autonomous Response:', text);
+        const text = apiResponse.text ? apiResponse.text() : "{}";
+        console.log('[AI Debug] Raw Autonomous Response:', text);
 
-            const jsonText = text.replace(/```json/g, '').replace(/```/g, '').trim();
-            const response = JSON.parse(jsonText);
+        const jsonText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+        const response = JSON.parse(jsonText);
 
-            this.emitAudit({
-                tenantId,
-                action: 'autonomous_response',
-                latency: Date.now() - startTime,
-                status: 'success',
-                conversationId
-            });
+        this.emitAudit({
+            tenantId,
+            action: 'autonomous_response',
+            latency: Date.now() - startTime,
+            status: 'success',
+            conversationId
+        });
 
-            return response;
-        } catch (error) {
-            this.logger.error(`Error in generateAutonomousResponse: ${error.message}`);
+        return response;
+    } catch (error) {
+        this.logger.error(`Error in generateAutonomousResponse: ${error.message}`);
 
-            const isNoCredits = error.message.includes('429') || error.message.toLowerCase().includes('quota');
-            if (isNoCredits) {
-                await this.createSystemAlert(tenantId, 'ERROR SISTEMA: IA Gemini - Límite de cuota alcanzado', conversationId);
-            } else if (error.message.includes('401') || error.message.includes('403')) {
-                await this.createSystemAlert(tenantId, 'ERROR SISTEMA: IA Gemini - API Key inválida o expirada', conversationId);
-            }
-
-            return {
-                content: "Lo siento, tengo un problema al procesar tu mensaje. Un agente humano revisará esto a la brevedad.",
-                handoverRequired: true,
-                handoverReason: "AI Error: " + error.message
-            };
+        const isNoCredits = error.message.includes('429') || error.message.toLowerCase().includes('quota');
+        if (isNoCredits) {
+            await this.createSystemAlert(tenantId, 'ERROR SISTEMA: IA Gemini - Límite de cuota alcanzado', conversationId);
+        } else if (error.message.includes('401') || error.message.includes('403')) {
+            await this.createSystemAlert(tenantId, 'ERROR SISTEMA: IA Gemini - API Key inválida o expirada', conversationId);
         }
+
+        return {
+            content: "Lo siento, tengo un problema al procesar tu mensaje. Un agente humano revisará esto a la brevedad.",
+            handoverRequired: true,
+            handoverReason: "AI Error: " + error.message
+        };
     }
+}
 
     async toggleAiManaged(tenantId: string, conversationId: string, managed: boolean) {
-        return this.prisma.conversation.update({
-            where: { id: conversationId, tenantId },
-            data: { aiManaged: managed }
-        });
-    }
+    return this.prisma.conversation.update({
+        where: { id: conversationId, tenantId },
+        data: { aiManaged: managed }
+    });
+}
 
     async generateTags(tenantId: string, conversationId: string) {
-        const analysis = await this.analyzeContext(conversationId);
-        const tags = analysis.tags || [];
+    const analysis = await this.analyzeContext(conversationId);
+    const tags = analysis.tags || [];
 
-        const conversation = await this.prisma.conversation.findUnique({
-            where: { id: conversationId },
-            select: { contactId: true, leadId: true }
-        });
+    const conversation = await this.prisma.conversation.findUnique({
+        where: { id: conversationId },
+        select: { contactId: true, leadId: true }
+    });
 
-        if (conversation) {
-            if (conversation.contactId) {
-                await this.prisma.contact.update({
-                    where: { id: conversation.contactId },
-                    data: { tags }
-                });
-            } else if (conversation.leadId) {
-                await this.prisma.lead.update({
-                    where: { id: conversation.leadId },
-                    data: { tags }
-                });
-            }
+    if (conversation) {
+        if (conversation.contactId) {
+            await this.prisma.contact.update({
+                where: { id: conversation.contactId },
+                data: { tags }
+            });
+        } else if (conversation.leadId) {
+            await this.prisma.lead.update({
+                where: { id: conversation.leadId },
+                data: { tags }
+            });
         }
-
-        return { tags };
     }
+
+    return { tags };
+}
 
     async getHandoverAlerts(tenantId: string) {
-        return this.prisma.handoverAlert.findMany({
-            where: { tenantId, status: 'PENDING' },
-            include: {
-                conversation: {
-                    include: {
-                        contact: true,
-                        lead: true,
-                        messages: {
-                            take: 3,
-                            orderBy: { createdAt: 'desc' },
-                            where: { type: { in: ['image', 'IMAGE', 'text', 'TEXT'] } } // Prioritize images/text
-                        }
+    return this.prisma.handoverAlert.findMany({
+        where: { tenantId, status: 'PENDING' },
+        include: {
+            conversation: {
+                include: {
+                    contact: true,
+                    lead: true,
+                    messages: {
+                        take: 3,
+                        orderBy: { createdAt: 'desc' },
+                        where: { type: { in: ['image', 'IMAGE', 'text', 'TEXT'] } } // Prioritize images/text
                     }
                 }
-            },
-            orderBy: { createdAt: 'desc' }
-        });
-    }
+            }
+        },
+        orderBy: { createdAt: 'desc' }
+    });
+}
 
     async resolveHandoverAlert(tenantId: string, alertId: string) {
-        return this.prisma.handoverAlert.update({
-            where: { id: alertId, tenantId },
-            data: { status: 'RESOLVED' }
-        });
-    }
+    return this.prisma.handoverAlert.update({
+        where: { id: alertId, tenantId },
+        data: { status: 'RESOLVED' }
+    });
+}
 
     async generateRevenueAnalysis(tenantId: string) {
-        const startTime = Date.now();
-        if (!this.checkRateLimit()) {
-            return { summary: "Rate limit alcanzado (15 RPM).", momentum: "LIMITADO", noCredits: true };
-        }
-        if (!this.client) {
-            const msg = "Configure su API Key de Gemini para activar el análisis predictivo de ingresos.";
-            await this.createSystemAlert(tenantId, `ERROR SISTEMA: IA Gemini - Falta configuración (${msg})`);
+    const startTime = Date.now();
+    if (!this.checkRateLimit()) {
+        return { summary: "Rate limit alcanzado (15 RPM).", momentum: "LIMITADO", noCredits: true };
+    }
+    if (!this.client) {
+        const msg = "Configure su API Key de Gemini para activar el análisis predictivo de ingresos.";
+        await this.createSystemAlert(tenantId, `ERROR SISTEMA: IA Gemini - Falta configuración (${msg})`);
+        return {
+            summary: msg,
+            momentum: "INACTIVO",
+            error: "MOCK_MODE",
+            noCredits: true
+        };
+    }
+
+    try {
+        const deals = await this.prisma.card.findMany({
+            where: { tenantId },
+            include: { contact: true, lead: true, stage: true }
+        });
+
+        if (deals.length === 0) {
             return {
-                summary: msg,
-                momentum: "INACTIVO",
-                error: "MOCK_MODE",
-                noCredits: true
+                summary: "No hay tratos suficientes para realizar un análisis de ingresos.",
+                momentum: "BAJO",
+                error: "NO_DATA"
             };
         }
 
-        try {
-            const deals = await this.prisma.card.findMany({
-                where: { tenantId },
-                include: { contact: true, lead: true, stage: true }
-            });
+        const dealsContext = deals.map(d =>
+            `- Trato: ${d.title}, Valor: ${d.value}, Etapa: ${d.stage.name}, Prioridad: ${d.priority}`
+        ).join('\n');
 
-            if (deals.length === 0) {
-                return {
-                    summary: "No hay tratos suficientes para realizar un análisis de ingresos.",
-                    momentum: "BAJO",
-                    error: "NO_DATA"
-                };
-            }
-
-            const dealsContext = deals.map(d =>
-                `- Trato: ${d.title}, Valor: ${d.value}, Etapa: ${d.stage.name}, Prioridad: ${d.priority}`
-            ).join('\n');
-
-            const prompt = `Analiza los siguientes tratos comerciales de un CRM y genera un resumen predictivo de ingresos en español.
+        const prompt = `Analiza los siguientes tratos comerciales de un CRM y genera un resumen predictivo de ingresos en español.
             Format JSON:
             {
                 "summary": "Un resumen de 1-2 oraciones sobre el estado del pipeline y predicción de cierre.",
@@ -824,118 +821,118 @@ export class AiService {
             Tratos:
             ${dealsContext}`;
 
-            const response = await this.client.models.generateContent({
-                model: this.modelName,
-                contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                config: {
-                    responseMimeType: 'application/json'
-                }
-            });
-
-            const text = response.text ? response.text() : "{}";
-            const analysis = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
-
-            this.emitAudit({
-                tenantId,
-                action: 'revenue_analysis',
-                latency: Date.now() - startTime,
-                status: 'success'
-            });
-
-            return analysis;
-        } catch (error) {
-            this.logger.error(`Error generating revenue analysis: ${error.message}`);
-            const isNoCredits = error.message.includes('429') || error.message.toLowerCase().includes('quota');
-
-            if (isNoCredits) {
-                await this.createSystemAlert(tenantId, 'ERROR SISTEMA: IA Gemini - Límite de cuota alcanzado (Quota exceeded)');
-            } else if (error.message.includes('401') || error.message.includes('403')) {
-                await this.createSystemAlert(tenantId, 'ERROR SISTEMA: IA Gemini - API Key inválida o expirada');
+        const response = await this.client.models.generateContent({
+            model: this.modelName,
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            config: {
+                responseMimeType: 'application/json'
             }
+        });
 
-            return {
-                summary: isNoCredits ? "Límite de créditos de IA alcanzado para este mes." : "Error al generar el análisis de ingresos.",
-                momentum: "ERROR",
-                error: error.message,
-                noCredits: isNoCredits
-            };
+        const text = response.text ? response.text() : "{}";
+        const analysis = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
+
+        this.emitAudit({
+            tenantId,
+            action: 'revenue_analysis',
+            latency: Date.now() - startTime,
+            status: 'success'
+        });
+
+        return analysis;
+    } catch (error) {
+        this.logger.error(`Error generating revenue analysis: ${error.message}`);
+        const isNoCredits = error.message.includes('429') || error.message.toLowerCase().includes('quota');
+
+        if (isNoCredits) {
+            await this.createSystemAlert(tenantId, 'ERROR SISTEMA: IA Gemini - Límite de cuota alcanzado (Quota exceeded)');
+        } else if (error.message.includes('401') || error.message.includes('403')) {
+            await this.createSystemAlert(tenantId, 'ERROR SISTEMA: IA Gemini - API Key inválida o expirada');
         }
-    }
 
-    async generateDebugResponse(systemPrompt: string, userPrompt: string, model?: string) {
-        if (!this.client) {
-            return { error: 'AI not initialized', status: 'error' };
-        }
-
-        try {
-            const modelName = model || this.modelName;
-
-            // Construct a prompt that effectively uses the system prompt
-            const fullPrompt = `${systemPrompt ? `SYSTEM INSTRUCTIONS:\n${systemPrompt}\n\n` : ''}USER MESSAGE:\n${userPrompt}`;
-
-            const response = await this.client.models.generateContent({
-                model: modelName,
-                contents: [{ role: 'user', parts: [{ text: fullPrompt }] }],
-            });
-
-            return {
-                status: 'success',
-                text: response.text ? response.text() : "",
-                model: modelName
-            };
-        } catch (error) {
-            return {
-                status: 'error',
-                error: error.message
-            };
-        }
-    }
-
-    private async createSystemAlert(tenantId: string, reason: string, conversationId?: string) {
-        try {
-            // Avoid duplicate active alerts for the same system error type
-            // Extract the main part of the reason to check for duplicates (e.g., "ERROR SISTEMA: IA Gemini")
-            const reasonPrefix = reason.split(' - ')[0];
-            const existingAlert = await this.prisma.handoverAlert.findFirst({
-                where: {
-                    tenantId,
-                    status: 'PENDING',
-                    reason: { startsWith: reasonPrefix }
-                }
-            });
-
-            if (existingAlert) return;
-
-            let finalConversationId = conversationId;
-
-            if (!finalConversationId) {
-                const lastConversation = await this.prisma.conversation.findFirst({
-                    where: { tenantId },
-                    orderBy: { updatedAt: 'desc' }
-                });
-                finalConversationId = lastConversation?.id;
-            }
-
-            if (finalConversationId) {
-                await this.prisma.handoverAlert.create({
-                    data: {
-                        conversationId: finalConversationId,
-                        tenantId,
-                        reason,
-                        status: 'PENDING'
-                    }
-                });
-                this.logger.log(`Created System Alert for tenant ${tenantId}: ${reason}`);
-            }
-        } catch (e) {
-            this.logger.error(`Failed to create system alert: ${e.message}`);
-        }
-    }
-
-    private getMockRefinement(text: string) {
         return {
-            original: text,
-            refined: `Entendido. ${text} Quedo atento a tus comentarios.`
+            summary: isNoCredits ? "Límite de créditos de IA alcanzado para este mes." : "Error al generar el análisis de ingresos.",
+            momentum: "ERROR",
+            error: error.message,
+            noCredits: isNoCredits
         };
     }
+}
+
+    async generateDebugResponse(systemPrompt: string, userPrompt: string, model ?: string) {
+    if (!this.client) {
+        return { error: 'AI not initialized', status: 'error' };
+    }
+
+    try {
+        const modelName = model || this.modelName;
+
+        // Construct a prompt that effectively uses the system prompt
+        const fullPrompt = `${systemPrompt ? `SYSTEM INSTRUCTIONS:\n${systemPrompt}\n\n` : ''}USER MESSAGE:\n${userPrompt}`;
+
+        const response = await this.client.models.generateContent({
+            model: modelName,
+            contents: [{ role: 'user', parts: [{ text: fullPrompt }] }],
+        });
+
+        return {
+            status: 'success',
+            text: response.text ? response.text() : "",
+            model: modelName
+        };
+    } catch (error) {
+        return {
+            status: 'error',
+            error: error.message
+        };
+    }
+}
+
+    private async createSystemAlert(tenantId: string, reason: string, conversationId ?: string) {
+    try {
+        // Avoid duplicate active alerts for the same system error type
+        // Extract the main part of the reason to check for duplicates (e.g., "ERROR SISTEMA: IA Gemini")
+        const reasonPrefix = reason.split(' - ')[0];
+        const existingAlert = await this.prisma.handoverAlert.findFirst({
+            where: {
+                tenantId,
+                status: 'PENDING',
+                reason: { startsWith: reasonPrefix }
+            }
+        });
+
+        if (existingAlert) return;
+
+        let finalConversationId = conversationId;
+
+        if (!finalConversationId) {
+            const lastConversation = await this.prisma.conversation.findFirst({
+                where: { tenantId },
+                orderBy: { updatedAt: 'desc' }
+            });
+            finalConversationId = lastConversation?.id;
+        }
+
+        if (finalConversationId) {
+            await this.prisma.handoverAlert.create({
+                data: {
+                    conversationId: finalConversationId,
+                    tenantId,
+                    reason,
+                    status: 'PENDING'
+                }
+            });
+            this.logger.log(`Created System Alert for tenant ${tenantId}: ${reason}`);
+        }
+    } catch (e) {
+        this.logger.error(`Failed to create system alert: ${e.message}`);
+    }
+}
+
+    private getMockRefinement(text: string) {
+    return {
+        original: text,
+        refined: `Entendido. ${text} Quedo atento a tus comentarios.`
+    };
+}
 }
