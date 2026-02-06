@@ -16,7 +16,12 @@ async function bootstrap() {
 
     // Enable CORS for frontend
     app.enableCors({
-        origin: '*', // In production, replace with specific domain
+        origin: [
+            'https://flow.pitayacode.io',
+            'https://www.flow.pitayacode.io',
+            'http://localhost:3000',
+            'http://localhost:5173'
+        ],
         methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
         credentials: true,
     });
@@ -26,4 +31,4 @@ async function bootstrap() {
     console.log(`🚀 Flow API is running on: http://localhost:${port}`);
 }
 bootstrap();
- // restart
+// restart

@@ -161,6 +161,7 @@ export const AiSettings: React.FC = () => {
                                     onChange={(e) => setConfig({ ...config, model: e.target.value })}
                                     disabled={!canModifySettings}
                                     className={`w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-xl py-2 px-3 text-sm ${!canModifySettings ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                >
                                     <option value="gemini-2.5-flash-lite-preview-0206">Gemini 2.5 Flash Lite (Preview)</option>
                                     <option value="gemini-1.5-flash">Gemini 1.5 Flash (Recommended)</option>
                                     <option value="gemini-1.5-pro">Gemini 1.5 Pro (Advanced)</option>
@@ -206,9 +207,9 @@ export const AiSettings: React.FC = () => {
                             onClick={handleSave}
                             disabled={isLoading || !canModifySettings}
                             className={`flex items-center justify-center gap-2 py-3 px-10 rounded-xl font-bold text-sm transition-all shadow-lg ${!canModifySettings ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none' :
-                                    status === 'success' ? 'bg-emerald-500 text-white shadow-emerald-200' :
-                                        status === 'error' ? 'bg-red-500 text-white shadow-red-200' :
-                                            'bg-primary hover:bg-blue-600 text-white shadow-primary/20'
+                                status === 'success' ? 'bg-emerald-500 text-white shadow-emerald-200' :
+                                    status === 'error' ? 'bg-red-500 text-white shadow-red-200' :
+                                        'bg-primary hover:bg-blue-600 text-white shadow-primary/20'
                                 }`}
                         >
                             {isLoading ? (
