@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import * as fs from 'fs';
@@ -21,8 +21,8 @@ export interface AiConfig {
 @Injectable()
 export class AiService {
     private readonly logger = new Logger(AiService.name);
-    private genAI: GoogleGenAI | null = null;
-    private modelName: string = 'gemini-2.5-flash-lite-preview-0206';
+    private genAI: GoogleGenerativeAI | null = null;
+    private modelName: string = 'gemini-1.5-flash-8b';
     private readonly configPath = path.join(process.cwd(), 'ai-config.json');
     private readonly algorithm = 'aes-256-ctr';
     private secretKey: Buffer;
@@ -48,8 +48,8 @@ export class AiService {
     private initializeAI() {
         const apiKey = this.getApiKey();
         if (apiKey) {
-            this.genAI = new GoogleGenAI({ apiKey });
-            this.modelName = this.getFullConfig().model || 'gemini-2.5-flash-lite-preview-0206';
+            this.genAI = new GoogleGenerativeAI(apiKey);
+            this.modelName = this.getFullConfig().model || 'gemini-1.5-flash-8b';
             this.logger.log(`Gemini AI Initialized with model: ${this.modelName}`);
         } else {
             this.logger.warn('GOOGLE_AI_API_KEY not found. AI features will use mock fallback logic.');
@@ -146,7 +146,7 @@ export class AiService {
         return {
             apiKey: this.configService.get<string>('GOOGLE_AI_API_KEY') || null,
             provider: 'GEMINI',
-            model: 'gemini-2.5-flash-lite-preview-0206'
+            model: 'gemini-1.5-flash-8b'
         } as any;
     }
 
@@ -329,11 +329,9 @@ export class AiService {
             const context = messages.map(m => `${m.senderType}: ${this.applyGuardrails(m.content)}`).join('\n');
             const prompt = `Resume esta conversación de WhatsApp en 2 oraciones cortas resaltando el interés del cliente y el estado del trato:\n\n${context}`;
 
-            const result = await this.genAI.models.generateContent({
-                model: this.modelName,
-                contents: prompt
-            });
-            const summary = result.text ? result.text : "Resumen no disponible";
+            const model = this.genAI.getGenerativeModel({ model: this.modelName });
+            const result = await model.generateContent(prompt);
+            const summary = result.response.text() ? result.response.text() : "Resumen no disponible";
 
             this.emitAudit({
                 tenantId: 'system', // Summarize usually global or triggered locally
@@ -382,11 +380,10 @@ export class AiService {
         try {
             const safeText = this.applyGuardrails(text);
             const prompt = `Convierte este mensaje informal en uno profesional y amable para WhatsApp, manteniendo el sentido original pero mejorando la ortografía y el tono. Solo devuelve el texto refinado, sin explicaciones.\n\nMensaje: ${safeText}`;
-            const result = await this.genAI.models.generateContent({
-                model: this.modelName,
-                contents: prompt
-            });
-            const refinedText = result.text ? result.text.trim() : safeText;
+
+            const model = this.genAI.getGenerativeModel({ model: this.modelName });
+            const result = await model.generateContent(prompt);
+            const refinedText = result.response.text() ? result.response.text().trim() : safeText;
 
             this.emitAudit({
                 tenantId: 'system',
