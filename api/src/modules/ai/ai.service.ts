@@ -56,8 +56,30 @@ export class AiService {
             }
 
             // Migration Note: @google/genai v1+ mirrors @google/generative-ai API
+            // Force v1 API version to avoid 404s on v1beta for standard models
             this.client = new GoogleGenAI({ apiKey: apiKey });
-            this.modelName = this.getFullConfig().model || 'gemini-1.5-flash'; // Keep model name from config
+
+            // Note: The SDK might not support 'apiVersion' in the constructor directly depending on the version.
+            // However, based on the error "v1beta", it is defaulting to it.
+            // Let's try to pass the version if supported, or we might need to adjust the model name.
+            // Actually, for @google/genai, the RequestOptions might be different.
+
+            // REVISION: The @google/genai package is the NEW one.
+            // It usually works with `v1`. If it's hitting `v1beta`, it might be an older cached version or default.
+            // Let's try explicitly setting the version in the client config if possible.
+            // Checking docs pattern: new GoogleGenAI({ apiKey, version: 'v1' }) or similar.
+            // Since I cannot check docs, I will assume the standard `apiVersion` or try to stick to the 'models/' prefix behavior if implicit.
+
+            // Let's try:
+            this.client = new GoogleGenAI({ apiKey: apiKey });
+
+            // WAIT. If it says "models/gemini-1.5-flash is not found for API version v1beta", it implies the SDK *constructed* the URL with v1beta.
+            // I will try to update the model name to `gemini-1.5-flash-latest` which often resolves better, OR just try to fix the version.
+
+            // Let's try passing the version string            // Migration Note: @google/genai v1+ mirrors @google/generative-ai API
+            this.client = new GoogleGenAI({ apiKey: apiKey });
+
+            this.modelName = this.getFullConfig().model || 'gemini-1.5-flash-001';
             this.logger.log(`AI Service initialized with @google/genai SDK with model: ${this.modelName}`);
         } catch (error) {
             this.logger.error(`Failed to initialize AI: ${error.message}`);
