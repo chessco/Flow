@@ -22,8 +22,8 @@ export interface AiConfig {
 @Injectable()
 export class AiService {
     private readonly logger = new Logger(AiService.name);
-    private client: any; // Type is GoogleGenAI
-    private modelName: string = 'gemini-1.5-flash';
+    private client: any; // GoogleGenAI instance
+    private modelName: string = 'gemini-1.5-flash-001'; // Default to specific version to avoid 404s
     private systemPrompt: string = '';
     private readonly configPath = path.join(process.cwd(), 'ai-config.json');
     private readonly algorithm = 'aes-256-ctr';
@@ -49,22 +49,12 @@ export class AiService {
 
     private initializeAI() {
         try {
-            const apiKey = this.getApiKey(); // Use existing getApiKey
+            const apiKey = this.getApiKey();
             if (!apiKey) {
                 this.logger.warn('GOOGLE_AI_API_KEY is not set or found in config. AI features will use mock fallback logic.');
                 return;
             }
 
-            // Migration Note: @google/genai v1+ mirrors @google/generative-ai API
-            // Force v1 API version to avoid 404s on v1beta for standard models
-            this.client = new GoogleGenAI({ apiKey: apiKey });
-
-            // Note: The SDK might not support 'apiVersion' in the constructor directly depending on the version.
-            // However, based on the error "v1beta", it is defaulting to it.
-            // Let's try to pass the version if supported, or we might need to adjust the model name.
-            // Actually, for @google/genai, the RequestOptions might be different.
-
-            // REVISION: The @google/genai package is the NEW one.
             // It usually works with `v1`. If it's hitting `v1beta`, it might be an older cached version or default.
             // Let's try explicitly setting the version in the client config if possible.
             // Checking docs pattern: new GoogleGenAI({ apiKey, version: 'v1' }) or similar.
@@ -369,7 +359,7 @@ export class AiService {
 
             const response = await this.client.models.generateContent({
                 model: this.modelName,
-                contents: prompt
+                contents: [{ role: 'user', parts: [{ text: prompt }] }]
             });
             const summary = response.text ? response.text() : "Resumen no disponible";
 
@@ -423,7 +413,7 @@ export class AiService {
 
             const response = await this.client.models.generateContent({
                 model: this.modelName,
-                contents: prompt
+                contents: [{ role: 'user', parts: [{ text: prompt }] }]
             });
             const refinedText = response.text ? response.text().trim() : safeText;
 
@@ -526,15 +516,13 @@ export class AiService {
             Conversation:
             ${context}`;
 
-            const response = await this.client.models.generateContent({
+            const apiResponse = await this.client.models.generateContent({
                 model: this.modelName,
                 contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                config: {
-                    responseMimeType: 'application/json'
-                }
+                config: { responseMimeType: 'application/json' }
             });
 
-            const text = response.text ? response.text() : "{}";
+            const text = apiResponse.text ? apiResponse.text() : "{}";
             const jsonText = text.replace(/```json/g, '').replace(/```/g, '').trim();
             const analysis = JSON.parse(jsonText);
 
@@ -888,7 +876,6 @@ export class AiService {
             const response = await this.client.models.generateContent({
                 model: modelName,
                 contents: [{ role: 'user', parts: [{ text: fullPrompt }] }],
-                // No forced JSON mime type here to allow flexible testing
             });
 
             return {
