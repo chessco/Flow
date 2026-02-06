@@ -243,11 +243,10 @@ export class AiService {
             
             JSON format: [{"tone": "...", "text": "..."}, ...]`;
 
-            const result = await this.genAI.models.generateContent({
-                model: this.modelName,
-                contents: prompt
-            });
-            const text = result.text ? result.text : JSON.stringify(result);
+            const model = this.genAI.getGenerativeModel({ model: this.modelName });
+
+            const result = await model.generateContent(prompt);
+            const text = result.response.text() ? result.response.text() : JSON.stringify(result);
 
             this.emitAudit({
                 tenantId,
@@ -484,13 +483,13 @@ export class AiService {
             Conversation:
             ${context}`;
 
-            const result = await this.genAI.models.generateContent({
+            const model = this.genAI.getGenerativeModel({
                 model: this.modelName,
-                contents: prompt,
-                config: { responseMimeType: 'application/json' }
+                generationConfig: { responseMimeType: 'application/json' }
             });
 
-            const text = result.text ? result.text : "{}";
+            const result = await model.generateContent(prompt);
+            const text = result.response.text() ? result.response.text() : "{}";
             const jsonText = text.replace(/```json/g, '').replace(/```/g, '').trim();
             const analysis = JSON.parse(jsonText);
 
@@ -642,13 +641,13 @@ export class AiService {
 
             console.log('[AI Debug] Raw Autonomous Prompt:', prompt);
 
-            const result = await this.genAI.models.generateContent({
+            const model = this.genAI.getGenerativeModel({
                 model: this.modelName,
-                contents: prompt,
-                config: { responseMimeType: 'application/json' }
+                generationConfig: { responseMimeType: 'application/json' }
             });
 
-            const text = result.text ? result.text : "{}";
+            const result = await model.generateContent(prompt);
+            const text = result.response.text() ? result.response.text() : "{}";
             console.log('[AI Debug] Raw Autonomous Response:', text);
 
             const jsonText = text.replace(/```json/g, '').replace(/```/g, '').trim();
@@ -787,13 +786,13 @@ export class AiService {
             Tratos:
             ${dealsContext}`;
 
-            const result = await this.genAI.models.generateContent({
+            const model = this.genAI.getGenerativeModel({
                 model: this.modelName,
-                contents: prompt,
-                config: { responseMimeType: 'application/json' }
+                generationConfig: { responseMimeType: 'application/json' }
             });
 
-            const text = result.text ? result.text : "{}";
+            const result = await model.generateContent(prompt);
+            const text = result.response.text() ? result.response.text() : "{}";
             const analysis = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
 
             this.emitAudit({
