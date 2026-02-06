@@ -49,7 +49,16 @@ export class AiService {
         const apiKey = this.getApiKey();
         if (apiKey) {
             this.genAI = new GoogleGenAI({ apiKey });
-            this.modelName = this.getFullConfig().model || 'gemini-1.5-flash';
+            let configuredModel = this.getFullConfig().model || 'gemini-1.5-flash';
+
+            // FALLBACK: 'gemini-2.5' or 'gemini-2.0' do not exist yet on public API.
+            // Force fallback to 1.5-flash until they are available.
+            if (configuredModel.includes('2.5') || configuredModel.includes('2.0')) {
+                this.logger.warn(`Model '${configuredModel}' is not yet available. Falling back to 'gemini-1.5-flash'.`);
+                configuredModel = 'gemini-1.5-flash';
+            }
+
+            this.modelName = configuredModel;
             this.logger.log(`Gemini AI Initialized with model: ${this.modelName}`);
         } else {
             this.logger.warn('GOOGLE_AI_API_KEY not found. AI features will use mock fallback logic.');

@@ -8,7 +8,7 @@ export const AiSettings: React.FC = () => {
         apiKey: '',
         provider: 'GEMINI',
         mode: 'TENANT',
-        model: 'gemini-2.5-flash-lite',
+        model: 'gemini-1.5-flash',
         temperature: 0.7,
         maxTokens: 1024,
         rateLimitEnabled: true,
@@ -161,9 +161,7 @@ export const AiSettings: React.FC = () => {
                                     onChange={(e) => setConfig({ ...config, model: e.target.value })}
                                     disabled={!canModifySettings}
                                     className={`w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-xl py-2 px-3 text-sm ${!canModifySettings ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                >
-                                    <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite (Latest)</option>
-                                    <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash Lite</option>
+                                    <option value="gemini-1.5-flash">Gemini 1.5 Flash (Recommended)</option>
                                     <option value="gemini-1.5-pro">Gemini 1.5 Pro (Advanced)</option>
                                 </select>
                             </div>
@@ -241,6 +239,6 @@ export const AiSettings: React.FC = () => {
                     </div>
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
