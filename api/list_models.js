@@ -18,14 +18,14 @@ async function listModels() {
         console.log("Testing common model names for availability...");
 
         const candidates = [
-            "gemini-2.0-flash",
-            "gemini-2.0-flash-lite",
-            "gemini-2.0-flash-lite-president-02-05", // checking variations
-            "gemini-2.0-flash-lite-preview-02-05",
+            "gemini-1.5-flash-8b",
+            "gemini-1.5-flash-8b-001",
+            "gemini-1.5-flash-8b-latest",
+            "gemini-1.5-flash-8b-exp-0827",
             "gemini-1.5-flash",
-            "gemini-1.5-pro",
-            "gemini-2.5-flash-lite-preview-0206",
-            "gemini-exp-1206"
+            "gemini-1.5-flash-001",
+            "gemini-1.5-flash-002",
+            "gemini-2.0-flash-lite-preview-02-05"
         ];
 
         for (const modelName of candidates) {
