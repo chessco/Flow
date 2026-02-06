@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 // import { GoogleGenerativeAI } from '@google/generative-ai'; // Removed
-const { Client } = require("@google/genai"); // Using require for the new SDK to avoid ESM issues
+const { GoogleGenerativeAI } = require("@google/genai"); // Correct import for installed version
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import * as fs from 'fs';
@@ -22,8 +22,9 @@ export interface AiConfig {
 @Injectable()
 export class AiService {
     private readonly logger = new Logger(AiService.name);
-    private client: any | null = null; // Changed from genAI
+    private client: any; // Type is GoogleGenerativeAI
     private modelName: string = 'gemini-1.5-flash';
+    private systemPrompt: string = '';
     private readonly configPath = path.join(process.cwd(), 'ai-config.json');
     private readonly algorithm = 'aes-256-ctr';
     private secretKey: Buffer;
@@ -47,13 +48,19 @@ export class AiService {
     }
 
     private initializeAI() {
-        const apiKey = this.getApiKey();
-        if (apiKey) {
-            this.client = new Client({ apiKey });
-            this.modelName = this.getFullConfig().model || 'gemini-1.5-flash';
-            this.logger.log(`Gemini AI Initialized (via google-genai) with model: ${this.modelName}`);
-        } else {
-            this.logger.warn('GOOGLE_AI_API_KEY not found. AI features will use mock fallback logic.');
+        try {
+            const apiKey = this.getApiKey(); // Use existing getApiKey
+            if (!apiKey) {
+                this.logger.warn('GOOGLE_AI_API_KEY is not set or found in config. AI features will use mock fallback logic.');
+                return;
+            }
+
+            // Migration Note: @google/genai v1+ mirrors @google/generative-ai API
+            this.client = new GoogleGenerativeAI(apiKey);
+            this.modelName = this.getFullConfig().model || 'gemini-1.5-flash'; // Keep model name from config
+            this.logger.log(`AI Service initialized with @google/genai SDK with model: ${this.modelName}`);
+        } catch (error) {
+            this.logger.error(`Failed to initialize AI: ${error.message}`);
         }
     }
 
@@ -244,13 +251,21 @@ export class AiService {
             
             JSON format: [{"tone": "...", "text": "..."}, ...]`;
 
-            const response = await this.client.models.generateContent({
-                model: this.modelName,
-                contents: prompt,
-                config: { responseMimeType: 'application/json' }
-            });
+            if (!this.client) {
+                this.initializeAI();
+                if (!this.client) throw new Error('AI not initialized');
+            }
 
-            const text = response.text ? response.text() : JSON.stringify(response);
+            const model = this.client.getGenerativeModel({ model: this.modelName });
+
+            const result = await model.generateContent({
+                contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                generationConfig: {
+                    responseMimeType: 'application/json'
+                }
+            });
+            const response = result.response;
+            const text = response.text();
 
             this.emitAudit({
                 tenantId,
@@ -332,10 +347,9 @@ export class AiService {
             const context = messages.map(m => `${m.senderType}: ${this.applyGuardrails(m.content)}`).join('\n');
             const prompt = `Resume esta conversación de WhatsApp en 2 oraciones cortas resaltando el interés del cliente y el estado del trato:\n\n${context}`;
 
-            const response = await this.client.models.generateContent({
-                model: this.modelName,
-                contents: prompt
-            });
+            const model = this.client.getGenerativeModel({ model: this.modelName });
+            const result = await model.generateContent(prompt);
+            const response = result.response;
             const summary = response.text ? response.text() : "Resumen no disponible";
 
             this.emitAudit({
@@ -386,10 +400,9 @@ export class AiService {
             const safeText = this.applyGuardrails(text);
             const prompt = `Convierte este mensaje informal en uno profesional y amable para WhatsApp, manteniendo el sentido original pero mejorando la ortografía y el tono. Solo devuelve el texto refinado, sin explicaciones.\n\nMensaje: ${safeText}`;
 
-            const response = await this.client.models.generateContent({
-                model: this.modelName,
-                contents: prompt
-            });
+            const model = this.client.getGenerativeModel({ model: this.modelName });
+            const result = await model.generateContent(prompt);
+            const response = result.response;
             const refinedText = response.text ? response.text().trim() : safeText;
 
             this.emitAudit({
@@ -491,11 +504,14 @@ export class AiService {
             Conversation:
             ${context}`;
 
-            const response = await this.client.models.generateContent({
-                model: this.modelName,
-                contents: prompt,
-                config: { responseMimeType: 'application/json' }
+            const model = this.client.getGenerativeModel({ model: this.modelName });
+            const result = await model.generateContent({
+                contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                generationConfig: {
+                    responseMimeType: 'application/json'
+                }
             });
+            const response = result.response;
 
             const text = response.text ? response.text() : "{}";
             const jsonText = text.replace(/```json/g, '').replace(/```/g, '').trim();
@@ -649,11 +665,15 @@ export class AiService {
 
             console.log('[AI Debug] Raw Autonomous Prompt:', prompt);
 
-            const apiResponse = await this.client.models.generateContent({
-                model: this.modelName,
-                contents: prompt,
-                config: { responseMimeType: 'application/json' }
+            const model = this.client.getGenerativeModel({ model: this.modelName });
+            const result = await model.generateContent({
+                contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                generationConfig: {
+                    responseMimeType: 'application/json'
+                }
             });
+
+            const apiResponse = result.response;
 
             const text = apiResponse.text ? apiResponse.text() : "{}";
             console.log('[AI Debug] Raw Autonomous Response:', text);
@@ -794,11 +814,14 @@ export class AiService {
             Tratos:
             ${dealsContext}`;
 
-            const response = await this.client.models.generateContent({
-                model: this.modelName,
-                contents: prompt,
-                config: { responseMimeType: 'application/json' }
+            const model = this.client.getGenerativeModel({ model: this.modelName });
+            const result = await model.generateContent({
+                contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                generationConfig: {
+                    responseMimeType: 'application/json'
+                }
             });
+            const response = result.response;
 
             const text = response.text ? response.text() : "{}";
             const analysis = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
