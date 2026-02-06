@@ -22,7 +22,7 @@ export interface AiConfig {
 export class AiService {
     private readonly logger = new Logger(AiService.name);
     private genAI: GoogleGenerativeAI | null = null;
-    private modelName: string = 'gemini-1.5-flash';
+    private modelName: string = 'gemini-1.5-flash-latest';
     private readonly configPath = path.join(process.cwd(), 'ai-config.json');
     private readonly algorithm = 'aes-256-ctr';
     private secretKey: Buffer;
@@ -49,7 +49,7 @@ export class AiService {
         const apiKey = this.getApiKey();
         if (apiKey) {
             this.genAI = new GoogleGenerativeAI(apiKey);
-            this.modelName = this.getFullConfig().model || 'gemini-1.5-flash';
+            this.modelName = this.getFullConfig().model || 'gemini-1.5-flash-latest';
             this.logger.log(`Gemini AI Initialized with model: ${this.modelName}`);
         } else {
             this.logger.warn('GOOGLE_AI_API_KEY not found. AI features will use mock fallback logic.');
@@ -146,7 +146,7 @@ export class AiService {
         return {
             apiKey: this.configService.get<string>('GOOGLE_AI_API_KEY') || null,
             provider: 'GEMINI',
-            model: 'gemini-1.5-flash'
+            model: 'gemini-1.5-flash-latest'
         } as any;
     }
 
