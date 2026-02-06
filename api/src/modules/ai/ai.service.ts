@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+// import { GoogleGenerativeAI } from '@google/generative-ai'; // Removed
+const { Client } = require("@google/genai"); // Using require for the new SDK to avoid ESM issues
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import * as fs from 'fs';
@@ -21,7 +22,7 @@ export interface AiConfig {
 @Injectable()
 export class AiService {
     private readonly logger = new Logger(AiService.name);
-    private genAI: GoogleGenerativeAI | null = null;
+    private client: any | null = null; // Changed from genAI
     private modelName: string = 'gemini-1.5-flash';
     private readonly configPath = path.join(process.cwd(), 'ai-config.json');
     private readonly algorithm = 'aes-256-ctr';
@@ -48,9 +49,9 @@ export class AiService {
     private initializeAI() {
         const apiKey = this.getApiKey();
         if (apiKey) {
-            this.genAI = new GoogleGenerativeAI(apiKey);
+            this.client = new Client({ apiKey });
             this.modelName = this.getFullConfig().model || 'gemini-1.5-flash';
-            this.logger.log(`Gemini AI Initialized with model: ${this.modelName}`);
+            this.logger.log(`Gemini AI Initialized (via google-genai) with model: ${this.modelName}`);
         } else {
             this.logger.warn('GOOGLE_AI_API_KEY not found. AI features will use mock fallback logic.');
         }
@@ -225,7 +226,7 @@ export class AiService {
             return this.getMockSuggestions('');
         }
 
-        if (!this.genAI) {
+        if (!this.client) {
             return this.getMockSuggestions(conversation.messages[0].content);
         }
 
@@ -243,10 +244,13 @@ export class AiService {
             
             JSON format: [{"tone": "...", "text": "..."}, ...]`;
 
-            const model = this.genAI.getGenerativeModel({ model: this.modelName, apiVersion: 'v1' });
+            const response = await this.client.models.generateContent({
+                model: this.modelName,
+                contents: prompt,
+                config: { responseMimeType: 'application/json' }
+            });
 
-            const result = await model.generateContent(prompt);
-            const text = result.response.text() ? result.response.text() : JSON.stringify(result);
+            const text = response.text ? response.text() : JSON.stringify(response);
 
             this.emitAudit({
                 tenantId,
@@ -314,7 +318,7 @@ export class AiService {
         if (!this.checkRateLimit()) {
             return "Límite de rate limit alcanzado (15 RPM). Por favor espere un momento.";
         }
-        if (!this.genAI) return "Conversación activa. No hay resumen disponible sin configuración de IA.";
+        if (!this.client) return "Conversación activa. No hay resumen disponible sin configuración de IA.";
 
         try {
             const messages = await this.prisma.message.findMany({
@@ -328,9 +332,11 @@ export class AiService {
             const context = messages.map(m => `${m.senderType}: ${this.applyGuardrails(m.content)}`).join('\n');
             const prompt = `Resume esta conversación de WhatsApp en 2 oraciones cortas resaltando el interés del cliente y el estado del trato:\n\n${context}`;
 
-            const model = this.genAI.getGenerativeModel({ model: this.modelName });
-            const result = await model.generateContent(prompt);
-            const summary = result.response.text() ? result.response.text() : "Resumen no disponible";
+            const response = await this.client.models.generateContent({
+                model: this.modelName,
+                contents: prompt
+            });
+            const summary = response.text ? response.text() : "Resumen no disponible";
 
             this.emitAudit({
                 tenantId: 'system', // Summarize usually global or triggered locally
@@ -372,7 +378,7 @@ export class AiService {
             return { refined: text, error: 'Rate limit reached' };
         }
 
-        if (!this.genAI) {
+        if (!this.client) {
             return this.getMockRefinement(text);
         }
 
@@ -380,9 +386,11 @@ export class AiService {
             const safeText = this.applyGuardrails(text);
             const prompt = `Convierte este mensaje informal en uno profesional y amable para WhatsApp, manteniendo el sentido original pero mejorando la ortografía y el tono. Solo devuelve el texto refinado, sin explicaciones.\n\nMensaje: ${safeText}`;
 
-            const model = this.genAI.getGenerativeModel({ model: this.modelName });
-            const result = await model.generateContent(prompt);
-            const refinedText = result.response.text() ? result.response.text().trim() : safeText;
+            const response = await this.client.models.generateContent({
+                model: this.modelName,
+                contents: prompt
+            });
+            const refinedText = response.text ? response.text().trim() : safeText;
 
             this.emitAudit({
                 tenantId: 'system',
@@ -431,7 +439,7 @@ export class AiService {
         if (!this.checkRateLimit()) {
             return { nextBestAction: "Rate limit reached (15 RPM). Please wait.", intent: "Límite alcanzado" };
         }
-        if (!this.genAI) return { nextBestAction: "Configure AI to enable analysis", intent: "Unknown" };
+        if (!this.client) return { nextBestAction: "Configure AI to enable analysis", intent: "Unknown" };
 
         try {
             const messages = await this.prisma.message.findMany({
@@ -483,14 +491,13 @@ export class AiService {
             Conversation:
             ${context}`;
 
-            const model = this.genAI.getGenerativeModel({
+            const response = await this.client.models.generateContent({
                 model: this.modelName,
-                apiVersion: 'v1',
-                generationConfig: { responseMimeType: 'application/json' }
+                contents: prompt,
+                config: { responseMimeType: 'application/json' }
             });
 
-            const result = await model.generateContent(prompt);
-            const text = result.response.text() ? result.response.text() : "{}";
+            const text = response.text ? response.text() : "{}";
             const jsonText = text.replace(/```json/g, '').replace(/```/g, '').trim();
             const analysis = JSON.parse(jsonText);
 
@@ -583,7 +590,7 @@ export class AiService {
 
         if (!conversation) return null;
 
-        if (!this.genAI) {
+        if (!this.client) {
             return {
                 content: "Hola, soy el asistente virtual de Flow. ¿En qué puedo ayudarte hoy?",
                 handoverRequired: false
@@ -642,14 +649,13 @@ export class AiService {
 
             console.log('[AI Debug] Raw Autonomous Prompt:', prompt);
 
-            const model = this.genAI.getGenerativeModel({
+            const apiResponse = await this.client.models.generateContent({
                 model: this.modelName,
-                apiVersion: 'v1',
-                generationConfig: { responseMimeType: 'application/json' }
+                contents: prompt,
+                config: { responseMimeType: 'application/json' }
             });
 
-            const result = await model.generateContent(prompt);
-            const text = result.response.text() ? result.response.text() : "{}";
+            const text = apiResponse.text ? apiResponse.text() : "{}";
             console.log('[AI Debug] Raw Autonomous Response:', text);
 
             const jsonText = text.replace(/```json/g, '').replace(/```/g, '').trim();
@@ -747,7 +753,7 @@ export class AiService {
         if (!this.checkRateLimit()) {
             return { summary: "Rate limit alcanzado (15 RPM).", momentum: "LIMITADO", noCredits: true };
         }
-        if (!this.genAI) {
+        if (!this.client) {
             const msg = "Configure su API Key de Gemini para activar el análisis predictivo de ingresos.";
             await this.createSystemAlert(tenantId, `ERROR SISTEMA: IA Gemini - Falta configuración (${msg})`);
             return {
@@ -788,14 +794,13 @@ export class AiService {
             Tratos:
             ${dealsContext}`;
 
-            const model = this.genAI.getGenerativeModel({
+            const response = await this.client.models.generateContent({
                 model: this.modelName,
-                apiVersion: 'v1',
-                generationConfig: { responseMimeType: 'application/json' }
+                contents: prompt,
+                config: { responseMimeType: 'application/json' }
             });
 
-            const result = await model.generateContent(prompt);
-            const text = result.response.text() ? result.response.text() : "{}";
+            const text = response.text ? response.text() : "{}";
             const analysis = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
 
             this.emitAudit({
