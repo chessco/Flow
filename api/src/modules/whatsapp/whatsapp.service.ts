@@ -60,9 +60,20 @@ export class WhatsappService {
             this.logger.warn(`No WhatsApp account found in DB for tenant ${tenantId}. Falling back to ENV variables.`);
         }
 
+        // Fallback to ENV if not found in DB
+        if (!accessToken) {
+            accessToken = this.configService.get('WHATSAPP_ACCESS_TOKEN');
+        }
+        if (!phoneNumberId) {
+            phoneNumberId = this.configService.get('WHATSAPP_PHONE_NUMBER_ID');
+        }
+
         if (!accessToken || !phoneNumberId) {
             throw new InternalServerErrorException('WhatsApp configuration missing for this tenant');
         }
+
+        accessToken = accessToken.replace(/\s/g, '');
+
 
         const url = `https://graph.facebook.com/${this.apiVersion}/${phoneNumberId}/messages`;
 
@@ -449,7 +460,13 @@ export class WhatsappService {
             where: { tenantId }
         });
 
+        // Clean inputs to prevent hidden whitespace/newlines
+        if (dto.accessToken) dto.accessToken = dto.accessToken.replace(/\s/g, '');
+        if (dto.wabaId) dto.wabaId = dto.wabaId.toString().trim();
+        if (dto.phoneNumberId) dto.phoneNumberId = dto.phoneNumberId.toString().trim();
+
         const isMaskedToken = dto.accessToken?.includes('****');
+
         const encryptedToken = (dto.accessToken && !isMaskedToken) ? this.encrypt(dto.accessToken) : null;
 
         if (!account) {

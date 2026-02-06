@@ -22,7 +22,7 @@ export interface AiConfig {
 export class AiService {
     private readonly logger = new Logger(AiService.name);
     private genAI: GoogleGenAI | null = null;
-    private modelName: string = 'gemini-2.5-flash-lite';
+    private modelName: string = 'gemini-1.5-flash';
     private readonly configPath = path.join(process.cwd(), 'ai-config.json');
     private readonly algorithm = 'aes-256-ctr';
     private secretKey: Buffer;

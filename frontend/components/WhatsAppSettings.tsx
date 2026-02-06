@@ -37,10 +37,22 @@ export const WhatsAppSettings: React.FC = () => {
         e.preventDefault();
         setStatus({ type: '', message: 'Gaurdando cambios...' });
         try {
-            await api.whatsapp.updateSettings(settings);
+            const cleanedSettings = {
+                ...settings,
+                accessToken: settings.accessToken.replace(/\s/g, ''),
+                phoneNumberId: settings.phoneNumberId.trim(),
+                wabaId: settings.wabaId.trim()
+            };
+            await api.whatsapp.updateSettings(cleanedSettings);
+            setSettings(cleanedSettings); // Update local state with cleaned values
             setStatus({ type: 'success', message: 'Configuración guardada correctamente.' });
+
         } catch (error: any) {
-            setStatus({ type: 'error', message: 'Error al guardar: ' + error.message });
+            if (error.status === 401) {
+                setStatus({ type: 'error', message: 'Sesión expirada. Por favor, inicia sesión nuevamente.' });
+            } else {
+                setStatus({ type: 'error', message: 'Error al guardar: ' + error.message });
+            }
         }
     };
 

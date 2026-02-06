@@ -81,7 +81,7 @@ export const Login: React.FC = () => {
 
                     <div className="text-center">
                         <p className="text-xs text-slate-400">
-                            Use <b>admin@pitaya.com</b> / <b>admin123</b>
+                            Use <b>admin@pitayacode.io</b> / <b>pitaya123</b>
                         </p>
                     </div>
                 </form>

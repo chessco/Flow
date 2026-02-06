@@ -43,7 +43,9 @@ class PitayaAPI {
         });
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ message: 'API Error' }));
-            throw new Error(errorData.message || 'API Error');
+            const error = new Error(errorData.message || 'API Error');
+            (error as any).status = response.status;
+            throw error;
         }
         const text = await response.text();
         return text ? JSON.parse(text) : null;
