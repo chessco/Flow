@@ -1,0 +1,22 @@
+services:
+  flow-api-prod:
+    build:
+      context: ..
+      dockerfile: Dockerfile.prod
+    container_name: flow-api-prod
+    restart: always
+    ports:
+      - "3003:3003"
+    env_file:
+      - .env
+    environment:
+      - PORT=3003
+      - NODE_ENV=production
+    networks:
+      pitaya_net:
+        aliases:
+          - flow-api
+
+networks:
+  pitaya_net:
+    external: true
