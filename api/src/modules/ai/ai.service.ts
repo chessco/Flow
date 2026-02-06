@@ -243,7 +243,7 @@ export class AiService {
             
             JSON format: [{"tone": "...", "text": "..."}, ...]`;
 
-            const model = this.genAI.getGenerativeModel({ model: this.modelName });
+            const model = this.genAI.getGenerativeModel({ model: this.modelName, apiVersion: 'v1' });
 
             const result = await model.generateContent(prompt);
             const text = result.response.text() ? result.response.text() : JSON.stringify(result);
@@ -485,6 +485,7 @@ export class AiService {
 
             const model = this.genAI.getGenerativeModel({
                 model: this.modelName,
+                apiVersion: 'v1',
                 generationConfig: { responseMimeType: 'application/json' }
             });
 
@@ -643,6 +644,7 @@ export class AiService {
 
             const model = this.genAI.getGenerativeModel({
                 model: this.modelName,
+                apiVersion: 'v1',
                 generationConfig: { responseMimeType: 'application/json' }
             });
 
@@ -788,6 +790,7 @@ export class AiService {
 
             const model = this.genAI.getGenerativeModel({
                 model: this.modelName,
+                apiVersion: 'v1',
                 generationConfig: { responseMimeType: 'application/json' }
             });
 
