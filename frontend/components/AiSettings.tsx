@@ -162,6 +162,7 @@ export const AiSettings: React.FC = () => {
                                     disabled={!canModifySettings}
                                     className={`w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-800 rounded-xl py-2 px-3 text-sm ${!canModifySettings ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 >
+                                    <option value="gemini-1.5-flash">Gemini 1.5 Flash (Standard - Stable)</option>
                                     <option value="gemini-1.5-flash-8b">Gemini 1.5 Flash-8b (High Speed & Efficient)</option>
                                     <option value="gemini-2.0-flash-lite-preview-0206">Gemini 2.0 Flash Lite (Preview)</option>
                                     <option value="gemini-2.0-flash">Gemini 2.0 Flash (Powerful)</option>
