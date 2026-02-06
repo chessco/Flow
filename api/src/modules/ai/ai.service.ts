@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 // import { GoogleGenerativeAI } from '@google/generative-ai'; // Removed
-const { GoogleGenerativeAI } = require("@google/genai"); // Correct import for installed version
+const { GoogleGenAI } = require("@google/genai"); // Correct import for installed version
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import * as fs from 'fs';
@@ -22,7 +22,7 @@ export interface AiConfig {
 @Injectable()
 export class AiService {
     private readonly logger = new Logger(AiService.name);
-    private client: any; // Type is GoogleGenerativeAI
+    private client: any; // Type is GoogleGenAI
     private modelName: string = 'gemini-1.5-flash';
     private systemPrompt: string = '';
     private readonly configPath = path.join(process.cwd(), 'ai-config.json');
@@ -56,7 +56,7 @@ export class AiService {
             }
 
             // Migration Note: @google/genai v1+ mirrors @google/generative-ai API
-            this.client = new GoogleGenerativeAI(apiKey);
+            this.client = new GoogleGenAI({ apiKey: apiKey });
             this.modelName = this.getFullConfig().model || 'gemini-1.5-flash'; // Keep model name from config
             this.logger.log(`AI Service initialized with @google/genai SDK with model: ${this.modelName}`);
         } catch (error) {
@@ -256,16 +256,14 @@ export class AiService {
                 if (!this.client) throw new Error('AI not initialized');
             }
 
-            const model = this.client.getGenerativeModel({ model: this.modelName });
-
-            const result = await model.generateContent({
+            const result = await this.client.models.generateContent({
+                model: this.modelName,
                 contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                generationConfig: {
+                config: {
                     responseMimeType: 'application/json'
                 }
             });
-            const response = result.response;
-            const text = response.text();
+            const text = result.text ? result.text() : "{}";
 
             this.emitAudit({
                 tenantId,
@@ -347,9 +345,10 @@ export class AiService {
             const context = messages.map(m => `${m.senderType}: ${this.applyGuardrails(m.content)}`).join('\n');
             const prompt = `Resume esta conversación de WhatsApp en 2 oraciones cortas resaltando el interés del cliente y el estado del trato:\n\n${context}`;
 
-            const model = this.client.getGenerativeModel({ model: this.modelName });
-            const result = await model.generateContent(prompt);
-            const response = result.response;
+            const response = await this.client.models.generateContent({
+                model: this.modelName,
+                contents: prompt
+            });
             const summary = response.text ? response.text() : "Resumen no disponible";
 
             this.emitAudit({
@@ -400,9 +399,10 @@ export class AiService {
             const safeText = this.applyGuardrails(text);
             const prompt = `Convierte este mensaje informal en uno profesional y amable para WhatsApp, manteniendo el sentido original pero mejorando la ortografía y el tono. Solo devuelve el texto refinado, sin explicaciones.\n\nMensaje: ${safeText}`;
 
-            const model = this.client.getGenerativeModel({ model: this.modelName });
-            const result = await model.generateContent(prompt);
-            const response = result.response;
+            const response = await this.client.models.generateContent({
+                model: this.modelName,
+                contents: prompt
+            });
             const refinedText = response.text ? response.text().trim() : safeText;
 
             this.emitAudit({
@@ -504,14 +504,13 @@ export class AiService {
             Conversation:
             ${context}`;
 
-            const model = this.client.getGenerativeModel({ model: this.modelName });
-            const result = await model.generateContent({
+            const response = await this.client.models.generateContent({
+                model: this.modelName,
                 contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                generationConfig: {
+                config: {
                     responseMimeType: 'application/json'
                 }
             });
-            const response = result.response;
 
             const text = response.text ? response.text() : "{}";
             const jsonText = text.replace(/```json/g, '').replace(/```/g, '').trim();
@@ -665,15 +664,11 @@ export class AiService {
 
             console.log('[AI Debug] Raw Autonomous Prompt:', prompt);
 
-            const model = this.client.getGenerativeModel({ model: this.modelName });
-            const result = await model.generateContent({
-                contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                generationConfig: {
-                    responseMimeType: 'application/json'
-                }
+            const apiResponse = await this.client.models.generateContent({
+                model: this.modelName,
+                contents: prompt,
+                config: { responseMimeType: 'application/json' }
             });
-
-            const apiResponse = result.response;
 
             const text = apiResponse.text ? apiResponse.text() : "{}";
             console.log('[AI Debug] Raw Autonomous Response:', text);
@@ -814,14 +809,13 @@ export class AiService {
             Tratos:
             ${dealsContext}`;
 
-            const model = this.client.getGenerativeModel({ model: this.modelName });
-            const result = await model.generateContent({
+            const response = await this.client.models.generateContent({
+                model: this.modelName,
                 contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                generationConfig: {
+                config: {
                     responseMimeType: 'application/json'
                 }
             });
-            const response = result.response;
 
             const text = response.text ? response.text() : "{}";
             const analysis = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
