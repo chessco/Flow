@@ -8,7 +8,7 @@ export const AiSettings: React.FC = () => {
         apiKey: '',
         provider: 'GEMINI',
         mode: 'TENANT',
-        model: 'gemini-1.5-flash-latest',
+        model: 'gemini-1.5-flash',
         temperature: 0.7,
         maxTokens: 1024,
         rateLimitEnabled: true,
