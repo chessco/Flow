@@ -2,7 +2,7 @@ const { GoogleGenAI } = require("@google/genai");
 require('dotenv').config();
 
 async function listModels() {
-    const apiKey = process.env.GOOGLE_AI_API_KEY || "AIzaSy..."; // Placeholder, will rely on env
+    const apiKey = process.env.GOOGLE_AI_API_KEY; // Rely on environment variable
     const genAI = new GoogleGenAI({ apiKey });
     try {
         // Note: older SDKs might not have listModels exposed cleanly, 
