@@ -1,9 +1,9 @@
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleGenAI } = require("@google/genai");
 require('dotenv').config();
 
 async function listModels() {
     const apiKey = process.env.GOOGLE_AI_API_KEY || "AIzaSy..."; // Placeholder, will rely on env
-    const genAI = new GoogleGenerativeAI(apiKey);
+    const genAI = new GoogleGenAI({ apiKey });
     try {
         // Note: older SDKs might not have listModels exposed cleanly, 
         // but newer ones usually refer to them via specific endpoints.
@@ -26,13 +26,16 @@ async function listModels() {
             "gemini-1.5-flash",
             "gemini-1.5-flash-001",
             "gemini-1.5-flash-002",
-            "gemini-2.0-flash-lite-preview-02-05"
+            "gemini-2.0-flash-lite-preview-02-05",
+            "gemini-2.5-flash-lite"
         ];
 
         for (const modelName of candidates) {
             try {
-                const model = genAI.getGenerativeModel({ model: modelName });
-                const result = await model.generateContent("Test");
+                const result = await genAI.models.generateContent({
+                    model: modelName,
+                    contents: [{ role: 'user', parts: [{ text: "Test" }] }]
+                });
                 console.log(`[PASS] ${modelName} is AVAILABLE.`);
             } catch (error) {
                 console.log(`[FAIL] ${modelName}: ${error.message.split('\n')[0]}`);
