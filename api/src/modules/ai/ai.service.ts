@@ -114,12 +114,34 @@ export class AiService {
 
     private decrypt(text: string): string {
         try {
-            const [iv, content] = text.split(':');
-            const decipher = crypto.createDecipheriv(this.algorithm, this.secretKey, Buffer.from(iv, 'hex'));
-            const decrypted = Buffer.concat([decipher.update(Buffer.from(content, 'hex')), decipher.final()]);
+            const [ivHex, encryptedText] = text.split(':');
+            const iv = Buffer.from(ivHex, 'hex');
+            const decipher = crypto.createDecipheriv(this.algorithm, this.secretKey, iv);
+            const decrypted = Buffer.concat([decipher.update(Buffer.from(encryptedText, 'hex')), decipher.final()]);
             return decrypted.toString();
         } catch (e) {
-            return text; // Fallback for migration if not encrypted
+            this.logger.error('Error decrypting text');
+            return text; // Return original if decryption fails
+        }
+    }
+
+    private extractText(response: any): string {
+        try {
+            // @google/genai structure
+            if (response?.candidates?.[0]?.content?.parts?.[0]?.text) {
+                return response.candidates[0].content.parts[0].text;
+            }
+            // Fallback for some versions of the response
+            if (typeof response?.text === 'function') {
+                return response.text();
+            }
+            if (typeof response?.text === 'string') {
+                return response.text;
+            }
+            return '';
+        } catch (e) {
+            this.logger.error('Error extracting text from AI response', e);
+            return '';
         }
     }
 
@@ -267,7 +289,7 @@ export class AiService {
                     responseMimeType: 'application/json'
                 }
             });
-            const text = result.text ? result.text() : "{}";
+            const text = this.extractText(result) || "{}";
 
             this.emitAudit({
                 tenantId,
@@ -353,7 +375,7 @@ export class AiService {
                 model: this.modelName,
                 contents: [{ role: 'user', parts: [{ text: prompt }] }]
             });
-            const summary = response.text ? response.text() : "Resumen no disponible";
+            const summary = this.extractText(response) || "Resumen no disponible";
 
             this.emitAudit({
                 tenantId: 'system', // Summarize usually global or triggered locally
@@ -407,7 +429,7 @@ export class AiService {
                 model: this.modelName,
                 contents: [{ role: 'user', parts: [{ text: prompt }] }]
             });
-            const refinedText = response.text ? response.text().trim() : safeText;
+            const refinedText = this.extractText(response).trim() || safeText;
 
             this.emitAudit({
                 tenantId: 'system',
@@ -514,7 +536,7 @@ export class AiService {
                 config: { responseMimeType: 'application/json' }
             });
 
-            const text = apiResponse.text ? apiResponse.text() : "{}";
+            const text = this.extractText(apiResponse) || "{}";
             const jsonText = text.replace(/```json/g, '').replace(/```/g, '').trim();
             const analysis = JSON.parse(jsonText);
 
@@ -677,7 +699,7 @@ export class AiService {
                 config: { responseMimeType: 'application/json' }
             });
 
-            const text = response.text ? response.text() : "{}";
+            const text = this.extractText(response) || "{}";
             console.log('[AI Debug] Raw Autonomous Response:', text);
 
             const jsonText = text.replace(/```json/g, '').replace(/```/g, '').trim();
@@ -824,7 +846,7 @@ export class AiService {
                 }
             });
 
-            const text = response.text ? response.text() : "{}";
+            const text = this.extractText(response) || "{}";
             const analysis = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
 
             this.emitAudit({
@@ -872,7 +894,7 @@ export class AiService {
 
             return {
                 status: 'success',
-                text: response.text ? response.text() : "",
+                text: this.extractText(response),
                 model: modelName
             };
         } catch (error) {
