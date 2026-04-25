@@ -22,6 +22,13 @@ export class KanbanService {
         });
 
         if (!pipeline) {
+            // Validate tenant existence before creating default
+            const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+            if (!tenant) {
+                this.logger.error(`Attempted to get/create pipeline for non-existent tenant: ${tenantId}`);
+                throw new NotFoundException(`Tenant with ID ${tenantId} not found`);
+            }
+
             this.logger.log(`No pipeline found for tenant ${tenantId}, creating default.`);
             pipeline = await this.createDefaultPipeline(tenantId);
         }

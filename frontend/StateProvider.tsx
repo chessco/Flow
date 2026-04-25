@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, ReactNode } from 'react';
+import React, { useState, useEffect, useRef, ReactNode, useCallback, useMemo } from 'react';
 import { Contact, Message, Deal, Task, NavigationItem, Workflow } from './types';
 import { api, API_BASE_URL } from './src/lib/api';
 import { translations, Language } from './src/lib/translations';
@@ -110,7 +110,7 @@ export const StateProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         }
     }, []);
 
-    const login = async (email, password) => {
+    const login = useCallback(async (email, password) => {
         try {
             const response = await api.auth.login({ email, password });
             if (response.access_token) {
@@ -131,15 +131,15 @@ export const StateProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             console.error('Login failed', error);
             return false;
         }
-    };
+    }, []);
 
-    const logout = () => {
+    const logout = useCallback(() => {
         localStorage.removeItem('auth_token');
         setIsAuthenticated(false);
         setUser(null);
-    };
+    }, []);
 
-    const t = (path: string) => {
+    const t = useCallback((path: string) => {
         const keys = path.split('.');
         let current: any = translations[language];
         for (const key of keys) {
@@ -147,55 +147,11 @@ export const StateProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             current = current[key];
         }
         return current;
-    };
+    }, [language]);
 
     const DEFAULT_TENANT_ID = 'edd1ac37-5ff9-4e46-bc7f-fff3c414d718';
 
-    const loadInitialData = async () => {
-        if (!isAuthenticated) return;
-        try {
-            // Check for tenant in localStorage
-            let tenantId = localStorage.getItem('tenant_id');
-            if (!tenantId) {
-                console.warn('Initial load: No tenant_id found, setting default.');
-                localStorage.setItem('tenant_id', DEFAULT_TENANT_ID);
-            }
-
-            const fetchedConversations = await api.whatsapp.getConversations();
-            fetchTasks(); // Load tasks in parallel
-
-            const mappedContacts: Contact[] = fetchedConversations.map((c: any) => {
-                const person = c.contact || c.lead;
-                return {
-                    id: c.id, // We use conversation ID as the primary key for the Unified Inbox
-                    personId: person?.id || '',
-                    personType: person ? (c.contactId ? 'CONTACT' : 'LEAD') : 'CONTACT',
-                    name: person?.name || person?.phone || 'Unknown',
-                    phone: person?.phone || '',
-                    email: person?.email || '',
-                    role: person?.role || 'Prospect',
-                    company: person?.company || 'Personal',
-                    avatar: person?.avatar || '',
-                    status: c.status === 'OPEN' ? 'online' : 'offline', // Map conversation status to contact status for display
-                    tags: person?.tags || [],
-                    aiManaged: c.aiManaged,
-                    unread: c.status === 'OPEN'
-                };
-            });
-
-            setContacts(mappedContacts);
-            if (mappedContacts.length > 0 && !activeContactId) {
-                setActiveContactId(mappedContacts[0].id);
-            }
-
-            // Load Kanban board
-            await fetchKanbanData();
-        } catch (error) {
-            console.error('Failed to load contacts:', error);
-        }
-    };
-
-    const fetchKanbanData = async () => {
+    const fetchKanbanData = useCallback(async () => {
         try {
             const board = await api.kanban.getBoard();
             if (board && board.stages) {
@@ -230,7 +186,77 @@ export const StateProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         } catch (error) {
             console.error('Failed to fetch Kanban data:', error);
         }
-    };
+    }, []);
+
+    const fetchTasks = useCallback(async (personId?: string, personType?: string) => {
+        try {
+            const fetched = await api.crm.tasks.getAll(personId, personType);
+            // Map backend Task to frontend Task interface
+            const mapped = fetched.map((t: any) => ({
+                id: t.id,
+                title: t.title,
+                description: t.description,
+                dueDate: t.dueDate,
+                status: t.status,
+                priority: t.priority,
+                contactId: t.contactId || t.leadId,
+                contactName: t.contact?.name || t.lead?.name || 'Unknown',
+                contactAvatar: t.contact?.avatar || t.lead?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(t.contact?.name || t.lead?.name || 'U')}`,
+                assigneeAvatar: 'https://i.pravatar.cc/150?u=a042581f4e29026704d'
+            }));
+            setTasks(mapped);
+        } catch (error) {
+            console.error('Failed to fetch tasks:', error);
+        }
+    }, []);
+
+    const loadInitialData = useCallback(async () => {
+        if (!isAuthenticated) return;
+        try {
+            // Check for tenant in localStorage
+            const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
+            let tenantId = localStorage.getItem('tenant_id');
+            if (!tenantId || tenantId === ZERO_UUID || tenantId === 'null') {
+                console.warn('Initial load: Invalid tenant_id found, setting default.');
+                localStorage.setItem('tenant_id', DEFAULT_TENANT_ID);
+                tenantId = DEFAULT_TENANT_ID;
+            }
+
+            const fetchedConversations = await api.whatsapp.getConversations();
+            fetchTasks(); // Load tasks in parallel
+
+            const mappedContacts: Contact[] = fetchedConversations.map((c: any) => {
+                const person = c.contact || c.lead;
+                return {
+                    id: c.id, // We use conversation ID as the primary key for the Unified Inbox
+                    personId: person?.id || '',
+                    personType: person ? (c.contactId ? 'CONTACT' : 'LEAD') : 'CONTACT',
+                    name: person?.name || person?.phone || 'Unknown',
+                    phone: person?.phone || '',
+                    email: person?.email || '',
+                    role: person?.role || 'Prospect',
+                    company: person?.company || 'Personal',
+                    avatar: person?.avatar || '',
+                    status: c.status === 'OPEN' ? 'online' : 'offline', // Map conversation status to contact status for display
+                    tags: person?.tags || [],
+                    aiManaged: c.aiManaged,
+                    unread: c.status === 'OPEN'
+                };
+            });
+
+            setContacts(mappedContacts);
+            // Only set active contact if one isn't already selected to prevent override during polling
+            setActiveContactId(prev => {
+                if (prev) return prev;
+                return mappedContacts.length > 0 ? mappedContacts[0].id : null;
+            });
+
+            // Load Kanban board
+            await fetchKanbanData();
+        } catch (error) {
+            console.error('Failed to load contacts:', error);
+        }
+    }, [isAuthenticated, fetchTasks, fetchKanbanData]);
 
     // Initial Load Data logic remains, but only runs if authenticated
     useEffect(() => {
@@ -415,54 +441,33 @@ export const StateProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         }
     };
 
-    const fetchTasks = async (personId?: string, personType?: string) => {
-        try {
-            const fetched = await api.crm.tasks.getAll(personId, personType);
-            // Map backend Task to frontend Task interface
-            const mapped = fetched.map((t: any) => ({
-                id: t.id,
-                title: t.title,
-                description: t.description,
-                dueDate: t.dueDate,
-                status: t.status,
-                priority: t.priority,
-                contactId: t.contactId || t.leadId,
-                contactName: t.contact?.name || t.lead?.name || 'Unknown',
-                contactAvatar: t.contact?.avatar || t.lead?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(t.contact?.name || t.lead?.name || 'U')}`,
-                assigneeAvatar: 'https://i.pravatar.cc/150?u=a042581f4e29026704d'
-            }));
-            setTasks(mapped);
-        } catch (error) {
-            console.error('Failed to fetch tasks:', error);
-        }
-    };
 
-    const addTask = async (task: Omit<Task, 'id'>) => {
+    const addTask = useCallback(async (task: Omit<Task, 'id'>) => {
         try {
             await api.crm.tasks.create(task);
             await fetchTasks();
         } catch (error) {
             console.error('Failed to add task:', error);
         }
-    };
+    }, [fetchTasks]);
 
-    const updateTask = async (taskId: string, updates: Partial<Task>) => {
+    const updateTask = useCallback(async (taskId: string, updates: Partial<Task>) => {
         try {
             await api.crm.tasks.update(taskId, updates);
             await fetchTasks();
         } catch (error) {
             console.error('Failed to update task:', error);
         }
-    };
+    }, [fetchTasks]);
 
-    const deleteTask = async (taskId: string) => {
+    const deleteTask = useCallback(async (taskId: string) => {
         try {
             await api.crm.tasks.delete(taskId);
             await fetchTasks();
         } catch (error) {
             console.error('Failed to delete task:', error);
         }
-    };
+    }, [fetchTasks]);
 
     const addWorkflow = (workflow: Omit<Workflow, 'id' | 'lastRun'>) => {
         const newWorkflow: Workflow = {
@@ -730,63 +735,76 @@ export const StateProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         await api.users.remove(id);
     };
 
+    const contextValue = useMemo(() => ({
+        contacts,
+        messages,
+        deals,
+        tasks,
+        activeItem,
+        setActiveItem,
+        activeContactId,
+        setActiveContactId: selectContact,
+        sendMessage,
+        updateDealStage,
+        addTask,
+        updateTask,
+        deleteTask,
+        workflows,
+        addWorkflow,
+        updateWorkflow,
+        deleteWorkflow,
+        triggerWorkflows,
+        suggestions,
+        refreshSuggestions,
+        isRefinedLoading,
+        refineMessage,
+        language,
+        setLanguage,
+        t,
+        isAuthenticated,
+        login,
+        logout,
+        user,
+        handoverAlerts,
+        fetchHandoverAlerts,
+        resolveHandoverAlert,
+        approvePayment,
+        refreshData: loadInitialData,
+        aiCache,
+        setAiCacheData,
+        stages,
+        revenueAnalysis,
+        fetchRevenueAnalysis,
+        aiStatus,
+        deletePerson,
+        deleteCard,
+        updateCard,
+        isAdmin,
+        isTenantAdmin,
+        isTenantUser,
+        canDelete,
+        canModifySettings,
+        fetchUsers,
+        createUser,
+        updateUser,
+        deleteUser,
+        activeSettingsTab,
+        setActiveSettingsTab
+    }), [
+        contacts, messages, deals, tasks, activeItem, activeContactId,
+        suggestions, isRefinedLoading, language, isAuthenticated, user,
+        handoverAlerts, aiCache, stages, revenueAnalysis, aiStatus,
+        isAdmin, isTenantAdmin, isTenantUser, canDelete, canModifySettings,
+        activeSettingsTab, selectContact, sendMessage, updateDealStage,
+        addTask, updateTask, deleteTask, addWorkflow, updateWorkflow,
+        deleteWorkflow, triggerWorkflows, refreshSuggestions, refineMessage,
+        login, logout, fetchHandoverAlerts, resolveHandoverAlert, approvePayment,
+        loadInitialData, fetchRevenueAnalysis, fetchUsers, createUser,
+        updateUser, deleteUser, t, setActiveSettingsTab
+    ]);
+
     return (
-        <StateContext.Provider value={{
-            contacts,
-            messages,
-            deals,
-            tasks,
-            activeItem,
-            setActiveItem,
-            activeContactId,
-            setActiveContactId: selectContact,
-            sendMessage,
-            updateDealStage,
-            addTask,
-            updateTask,
-            deleteTask,
-            workflows,
-            addWorkflow,
-            updateWorkflow,
-            deleteWorkflow,
-            triggerWorkflows,
-            suggestions,
-            refreshSuggestions,
-            isRefinedLoading,
-            refineMessage,
-            language,
-            setLanguage,
-            t,
-            isAuthenticated,
-            login,
-            logout,
-            user,
-            handoverAlerts,
-            fetchHandoverAlerts,
-            resolveHandoverAlert,
-            approvePayment,
-            refreshData: loadInitialData,
-            aiCache,
-            setAiCacheData,
-            stages,
-            revenueAnalysis,
-            fetchRevenueAnalysis,
-            aiStatus,
-            deletePerson,
-            deleteCard,
-            updateCard,
-            isAdmin,
-            isTenantAdmin,
-            isTenantUser,
-            canDelete,
-            canModifySettings,
-            fetchUsers,
-            createUser,
-            updateUser,
-            deleteUser,
-            activeSettingsTab,
-            setActiveSettingsTab
-        }}>
+        <StateContext.Provider value={contextValue}>
             {children}
         </StateContext.Provider>
     );

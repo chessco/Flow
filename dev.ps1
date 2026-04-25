@@ -1,6 +1,10 @@
 # PitayaCode Flow - Dev Runner (Windows)
 Write-Host "Starting development environment..." -ForegroundColor Cyan
 
+# 0. Start Database (Docker)
+Write-Host "Ensuring database container is running..." -ForegroundColor Yellow
+docker-compose up -d db
+
 # 1. Install Backend dependencies
 if (!(Test-Path "api/node_modules")) {
     Write-Host "Installing Backend dependencies..." -ForegroundColor Yellow
@@ -23,8 +27,10 @@ Set-Location api
 npx prisma generate
 Set-Location ..
 
-# 4. Start services
-Write-Host "Starting API and Frontend..." -ForegroundColor Green
-Write-Host "Tip: Use Ctrl+C to stop both services." -ForegroundColor Gray
+# 4. Start services in independent windows
+Write-Host "Launching API and Frontend in separate windows..." -ForegroundColor Green
 
-npx --yes concurrently -n "API,WEB" -c "blue,green" "npm run dev --prefix api" "npm run dev --prefix frontend"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd api; `$Host.UI.RawUI.WindowTitle = 'Flow - API'; npm run dev"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd frontend; `$Host.UI.RawUI.WindowTitle = 'Flow - Frontend'; npm run dev"
+
+Write-Host "Done! Services are running in their own windows." -ForegroundColor Gray

@@ -10,14 +10,21 @@ console.log('-----------------------------------');
 class PitayaAPI {
     private getHeaders() {
         const token = localStorage.getItem('auth_token');
-        const tenantId = localStorage.getItem('tenant_id');
-
         const DEFAULT_TENANT_ID = 'edd1ac37-5ff9-4e46-bc7f-fff3c414d718';
-        const finalTenantId = tenantId || DEFAULT_TENANT_ID;
-
-        if (!tenantId) {
-            console.warn('No tenant_id in localStorage, using default:', DEFAULT_TENANT_ID);
+        const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
+        
+        let tenantId = localStorage.getItem('tenant_id');
+        
+        // Robust check for zero UUID or invalid placeholders
+        if (!tenantId || tenantId === ZERO_UUID || tenantId === 'null' || tenantId === 'undefined') {
+            if (tenantId) {
+                console.warn('Detected invalid tenant_id in localStorage, fixing it:', tenantId);
+                localStorage.setItem('tenant_id', DEFAULT_TENANT_ID);
+            }
+            tenantId = DEFAULT_TENANT_ID;
         }
+
+        const finalTenantId = tenantId;
 
         return {
             'Content-Type': 'application/json',
