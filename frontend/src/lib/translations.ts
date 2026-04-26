@@ -10,6 +10,8 @@ export const translations = {
             cancel: "Cancel",
             error: "Error",
             success: "Success",
+            expand: "Expand",
+            minimize: "Minimize"
         },
         inbox: {
             title: "Inbox",
@@ -259,6 +261,8 @@ export const translations = {
             cancel: "Cancelar",
             error: "Error",
             success: "Éxito",
+            expand: "Expandir",
+            minimize: "Minimizar"
         },
         inbox: {
             title: "Bandeja de entrada",

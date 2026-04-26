@@ -240,7 +240,8 @@ export const StateProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                     status: c.status === 'OPEN' ? 'online' : 'offline', // Map conversation status to contact status for display
                     tags: person?.tags || [],
                     aiManaged: c.aiManaged,
-                    unread: c.status === 'OPEN'
+                    unread: c.status === 'OPEN',
+                    lastCustomerMessageAt: c.lastCustomerMessageAt
                 };
             });
 

@@ -4,6 +4,7 @@ import { useAppState } from '../StateContext';
 
 const Inbox: React.FC = () => {
   const [isAiDrawerOpen, setIsAiDrawerOpen] = useState(false);
+  const [isSuggestionsMinimized, setIsSuggestionsMinimized] = useState(false);
   const [inputText, setInputText] = useState('');
   const [activeFilter, setActiveFilter] = useState<'all' | 'unread' | 'ai'>('all');
   const {
@@ -66,11 +67,26 @@ const Inbox: React.FC = () => {
       setInputText(refined);
     }
   };
+  const getWindowStatus = (lastCustomerMessageAt?: string) => {
+    if (!lastCustomerMessageAt) return { status: 'expired', label: 'Sin ventana', color: 'text-red-500 bg-red-50 dark:bg-red-900/20' };
+    
+    const lastMsg = new Date(lastCustomerMessageAt).getTime();
+    const now = new Date().getTime();
+    const hoursPassed = (now - lastMsg) / (1000 * 60 * 60);
+    const remainingHours = Math.max(0, 24 - hoursPassed);
+
+    if (remainingHours <= 0) return { status: 'expired', label: 'Ventana cerrada', color: 'text-red-500 bg-red-50 dark:bg-red-900/20' };
+    if (remainingHours < 2) {
+      const mins = Math.floor(remainingHours * 60);
+      return { status: 'warning', label: `${mins}m restante`, color: 'text-amber-500 bg-amber-50 dark:bg-amber-900/20' };
+    }
+    return { status: 'active', label: `${Math.floor(remainingHours)}h restante`, color: 'text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20' };
+  };
 
   return (
     <div className="flex h-full w-full overflow-hidden relative">
       {/* Inbox List Panel */}
-      <aside className="w-[380px] h-full flex flex-col bg-white dark:bg-[#151c2c] border-r border-slate-200 dark:border-slate-800 shrink-0 z-10 hidden md:flex">
+      <aside className="w-[300px] h-full flex flex-col bg-white dark:bg-[#151c2c] border-r border-slate-200 dark:border-slate-800 shrink-0 z-10 hidden md:flex">
         <div className="px-5 pt-6 pb-2">
           <div className="flex justify-between items-center mb-4">
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">{t('inbox.title')} <span className="text-slate-400 font-medium text-lg ml-1">{contacts.length}</span></h1>
@@ -137,6 +153,10 @@ const Inbox: React.FC = () => {
                       <div className="flex justify-between items-start mb-0.5">
                         <div className="flex items-center gap-1 min-w-0">
                           <h3 className={`font-semibold text-sm truncate ${contact.unread ? 'text-primary' : 'text-slate-900 dark:text-white'}`}>{contact.name}</h3>
+                          <div 
+                            className={`w-2 h-2 rounded-full shrink-0 ml-1 ${getWindowStatus(contact.lastCustomerMessageAt).status === 'active' ? 'bg-emerald-500' : getWindowStatus(contact.lastCustomerMessageAt).status === 'warning' ? 'bg-amber-500' : 'bg-red-500'}`} 
+                            title={getWindowStatus(contact.lastCustomerMessageAt).label}
+                          ></div>
                           {contact.aiManaged && (
                             <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-white shrink-0" title={t('handover.aiManaged')}>
                               <span className="material-symbols-outlined text-[10px] scale-90">bolt</span>
@@ -193,6 +213,10 @@ const Inbox: React.FC = () => {
                     {t('handover.aiManaged')}
                   </span>
                 )}
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 uppercase tracking-wider border border-current opacity-90 ${getWindowStatus(activeContact.lastCustomerMessageAt).color}`}>
+                  <span className="material-symbols-outlined text-[12px]">schedule</span>
+                  {getWindowStatus(activeContact.lastCustomerMessageAt).label}
+                </span>
               </div>
               <p className="text-[11px] text-slate-400 font-medium">{t('inbox.' + activeContact.status)}</p>
             </div>
@@ -204,10 +228,11 @@ const Inbox: React.FC = () => {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsAiDrawerOpen(!isAiDrawerOpen)}
-              className="hidden md:flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-white bg-primary hover:bg-blue-700 rounded-lg shadow-sm shadow-primary/30 transition-all"
+              className="flex items-center gap-2 px-2 md:px-3 py-1.5 text-xs font-medium text-white bg-primary hover:bg-blue-700 rounded-lg shadow-sm shadow-primary/30 transition-all"
+              title={t('inbox.aicopilot')}
             >
               <span className="material-symbols-outlined text-[18px]">bolt</span>
-              {t('inbox.aicopilot')}
+              <span className="hidden sm:inline">{t('inbox.aicopilot')}</span>
             </button>
             {canDelete && (
               <button
@@ -261,7 +286,7 @@ const Inbox: React.FC = () => {
                             />
                           </div>
                         )}
-                        <p className="text-sm text-slate-800 dark:text-slate-100 leading-relaxed">{msg.text}</p>
+                        <p className="text-sm text-slate-800 dark:text-slate-100 leading-relaxed whitespace-pre-wrap">{msg.text}</p>
                       </div>
                       <span className="text-[10px] text-slate-400 pl-1">{msg.timestamp}</span>
                     </div>
@@ -270,7 +295,7 @@ const Inbox: React.FC = () => {
                   <div className="flex gap-3 max-w-[80%] md:max-w-[70%] self-end flex-row-reverse animate-in slide-in-from-right-4 duration-300">
                     <div className="flex flex-col gap-1 items-end">
                       <div className="bg-primary text-white p-4 rounded-2xl rounded-br-sm shadow-md shadow-primary/20">
-                        <p className="text-sm leading-relaxed">{msg.text}</p>
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.text}</p>
                       </div>
                       {msg.type === 'file' && (
                         <div className="bg-white dark:bg-[#1f2937] p-3 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center gap-3 w-64 shadow-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
@@ -301,30 +326,51 @@ const Inbox: React.FC = () => {
           <div className="flex flex-col gap-2">
             {/* Suggestion Pop-up - Now relative/static above the input to avoid overlap */}
             {suggestions.length > 0 && (
-              <div className="bg-white dark:bg-[#1f2937] border border-indigo-100 dark:border-indigo-900 rounded-xl shadow-md p-4 mb-2 animate-in fade-in slide-in-from-bottom-2">
-                <div className="flex items-center justify-between mb-3">
+              <div className={`bg-white dark:bg-[#1f2937] border border-indigo-100 dark:border-indigo-900 rounded-xl shadow-md transition-all duration-300 overflow-hidden ${isSuggestionsMinimized ? 'p-2' : 'p-4'} mb-2 animate-in fade-in slide-in-from-bottom-2`}>
+                <div className={`flex items-center justify-between ${isSuggestionsMinimized ? 'mb-0' : 'mb-3'}`}>
                   <div className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400">
                     <span className="material-symbols-outlined text-[18px]">colors_spark</span>
                     <span className="text-xs font-bold uppercase tracking-wide">{t('inbox.suggestedReplies')}</span>
+                    {isSuggestionsMinimized && (
+                      <span className="px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-900/40 text-[10px] font-bold rounded text-indigo-500">{suggestions.length}</span>
+                    )}
                   </div>
-                  <button onClick={() => refreshSuggestions(activeContact.id)} className="text-slate-400 hover:text-indigo-600 transition-colors flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[16px]">refresh</span>
-                    <span className="text-[10px] font-medium uppercase">{t('inbox.regenerate')}</span>
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {suggestions.map((sugg, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => setInputText(sugg.text)}
-                      className="px-3 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-xs font-medium rounded-lg border border-indigo-100 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-all text-left max-w-xs truncate"
-                      title={sugg.text}
+                  <div className="flex items-center gap-3">
+                    {!isSuggestionsMinimized && (
+                      <button onClick={() => refreshSuggestions(activeContact.id)} className="text-slate-400 hover:text-indigo-600 transition-colors flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[16px]">refresh</span>
+                        <span className="text-[10px] font-medium uppercase">{t('inbox.regenerate')}</span>
+                      </button>
+                    )}
+                    <button 
+                      onClick={() => setIsSuggestionsMinimized(!isSuggestionsMinimized)} 
+                      className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-colors"
+                      title={isSuggestionsMinimized ? t('common.expand') : t('common.minimize')}
                     >
-                      <span className="font-bold block text-[9px] mb-0.5 opacity-60 uppercase">{sugg.tone}</span>
-                      {sugg.text}
+                      <span className="material-symbols-outlined text-[18px]">
+                        {isSuggestionsMinimized ? 'keyboard_arrow_up' : 'keyboard_arrow_down'}
+                      </span>
                     </button>
-                  ))}
+                  </div>
                 </div>
+                {!isSuggestionsMinimized && (
+                  <div className="flex flex-wrap gap-2">
+                    {suggestions.map((sugg, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => {
+                          setInputText(sugg.text);
+                          setIsSuggestionsMinimized(true);
+                        }}
+                        className="px-3 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-xs font-medium rounded-lg border border-indigo-100 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-all text-left max-w-xs truncate"
+                        title={sugg.text}
+                      >
+                        <span className="font-bold block text-[9px] mb-0.5 opacity-60 uppercase">{sugg.tone}</span>
+                        {sugg.text}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -370,7 +416,7 @@ const Inbox: React.FC = () => {
 
       {/* AI Drawer (Right Side) */}
       {isAiDrawerOpen && (
-        <div className="w-[400px] border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-[#151c2c] h-full shadow-xl z-20 hidden md:block">
+        <div className="fixed inset-y-0 right-0 xl:absolute xl:right-0 xl:top-0 xl:bottom-0 w-[320px] sm:w-[360px] lg:w-[380px] border-l border-slate-200/50 dark:border-slate-800/50 bg-white/80 dark:bg-[#151c2c]/80 backdrop-blur-xl h-full shadow-2xl z-50 animate-in slide-in-from-right duration-300">
           <AiDrawer onClose={() => setIsAiDrawerOpen(false)} />
         </div>
       )}

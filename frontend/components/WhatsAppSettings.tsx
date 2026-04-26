@@ -4,13 +4,19 @@ import { useAppState } from '../StateContext';
 
 export const WhatsAppSettings: React.FC = () => {
     const { user, canModifySettings } = useAppState();
-    const isGeneralAdmin = user?.email === 'admin@pitayacode.io';
+    const isSystemAdmin = user?.email === 'system@pitayacode.io';
+    const isGeneralAdmin = user?.email === 'admin@pitayacode.io' || isSystemAdmin;
 
     const [settings, setSettings] = useState({
+        tenantId: '',
         accessToken: '',
         phoneNumberId: '',
         wabaId: '',
-        verifyToken: ''
+        verifyToken: '',
+        tenantName: '',
+        tenantSlug: '',
+        skills: { sales: false, purchase_approval: false },
+        allTenants: [] as any[]
     });
     const [loading, setLoading] = useState(true);
     const [showToken, setShowToken] = useState(false);
@@ -22,14 +28,26 @@ export const WhatsAppSettings: React.FC = () => {
         fetchSettings();
     }, []);
 
-    const fetchSettings = async () => {
+    const fetchSettings = async (id?: string) => {
         try {
-            const data = await api.whatsapp.getSettings();
+            // Se puede pasar un id opcional para ver otro tenant si es superadmin
+            const query = id ? `?tenantId=${id}` : '';
+            // Note: Our api helper might need to support query params or I'll use fetch/axios directly
+            // For now let's assume getSettings can handle a specific tenant if the user is authorized
+            const data = await api.whatsapp.getSettings(id); 
             setSettings(data);
         } catch (error) {
             console.error('Failed to fetch settings:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleTenantSwitch = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const id = e.target.value;
+        if (id) {
+            setLoading(true);
+            fetchSettings(id);
         }
     };
 
@@ -43,8 +61,9 @@ export const WhatsAppSettings: React.FC = () => {
                 phoneNumberId: settings.phoneNumberId.trim(),
                 wabaId: settings.wabaId.trim()
             };
-            await api.whatsapp.updateSettings(cleanedSettings);
-            setSettings(cleanedSettings); // Update local state with cleaned values
+            // Note: Pass tenantId if we are in superadmin mode switching tenants
+            await api.whatsapp.updateSettings(cleanedSettings, settings.tenantId);
+            setSettings(cleanedSettings);
             setStatus({ type: 'success', message: 'Configuración guardada correctamente.' });
 
         } catch (error: any) {
@@ -62,7 +81,51 @@ export const WhatsAppSettings: React.FC = () => {
         <div className="p-8 max-w-2xl mx-auto">
             <div className="mb-8">
                 <h1 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">Configuración de WhatsApp</h1>
-                <p className="text-slate-500 dark:text-slate-400">Gestiona las credenciales de tu API de WhatsApp Cloud para este entorno.</p>
+                <p className="text-slate-500 dark:text-slate-400">Gestiona las credenciales de tu API de WhatsApp Cloud y las habilidades activas de tu instancia.</p>
+            </div>
+
+            {isSystemAdmin && settings.allTenants?.length > 0 && (
+                <div className="mb-6 p-4 bg-indigo-600 rounded-lg border border-indigo-500 shadow-lg text-white">
+                    <label className="block text-xs font-black uppercase tracking-widest mb-2 opacity-80">Panel System Admin: Cambiar de Tenant</label>
+                    <select 
+                        onChange={handleTenantSwitch} 
+                        value={settings.tenantId}
+                        className="w-full p-2 bg-indigo-800 border border-indigo-400 rounded text-sm font-bold outline-none focus:ring-2 focus:ring-white/20"
+                    >
+                        {settings.allTenants.map((t: any) => (
+                            <option key={t.id} value={t.id}>{t.name} ({t.slug})</option>
+                        ))}
+                    </select>
+                </div>
+            )}
+
+            <div className="mb-6 p-4 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                        <h3 className="text-sm font-bold text-slate-800 dark:text-white">Tenant: {settings.tenantName || 'Cargando...'}</h3>
+                        <div className="mt-2 flex items-center gap-2">
+                            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-tighter">Slug de Conexión:</span>
+                            {isSystemAdmin ? (
+                                <input 
+                                    type="text" 
+                                    value={settings.tenantSlug}
+                                    onChange={(e) => setSettings({ ...settings, tenantSlug: e.target.value })}
+                                    className="text-xs font-mono bg-white dark:bg-slate-700 px-2 py-1 rounded border border-slate-300 dark:border-slate-600 focus:ring-1 focus:ring-indigo-500 outline-none w-48"
+                                />
+                            ) : (
+                                <span className="font-mono bg-slate-200 dark:bg-slate-700 px-1 rounded text-xs">{settings.tenantSlug || '...'}</span>
+                            )}
+                        </div>
+                    </div>
+                    <div className="flex gap-2">
+                        {settings.skills?.sales && (
+                            <span className="px-2 py-1 bg-green-100 text-green-700 text-[10px] font-bold rounded-full uppercase">Skill: Ventas</span>
+                        )}
+                        {settings.skills?.purchase_approval && (
+                            <span className="px-2 py-1 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-full uppercase">Skill: Aprobaciones</span>
+                        )}
+                    </div>
+                </div>
             </div>
 
             <form onSubmit={handleSave} className="space-y-6 bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
@@ -144,6 +207,48 @@ export const WhatsAppSettings: React.FC = () => {
                                 </span>
                             </button>
                         </div>
+                    </div>
+                </div>
+
+                <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <h3 className="text-sm font-medium text-slate-800 dark:text-slate-200 mb-3 flex items-center">
+                        <span className="material-symbols-outlined text-sm mr-1">bolt</span>
+                        Habilidades Activas (Skills)
+                    </h3>
+                    <div className="space-y-3">
+                        <label className="flex items-center cursor-pointer group">
+                            <input
+                                type="checkbox"
+                                checked={settings.skills?.sales}
+                                onChange={(e) => setSettings({
+                                    ...settings,
+                                    skills: { ...settings.skills, sales: e.target.checked }
+                                })}
+                                disabled={!canModifySettings}
+                                className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
+                            />
+                            <div className="ml-3">
+                                <span className="block text-sm font-medium text-slate-700 dark:text-slate-300">Ventas Inteligentes (AI)</span>
+                                <span className="block text-xs text-slate-500">Permite que la IA gestione conversaciones y sugiera cambios en el Kanban.</span>
+                            </div>
+                        </label>
+
+                        <label className="flex items-center cursor-pointer group">
+                            <input
+                                type="checkbox"
+                                checked={settings.skills?.purchase_approval}
+                                onChange={(e) => setSettings({
+                                    ...settings,
+                                    skills: { ...settings.skills, purchase_approval: e.target.checked }
+                                })}
+                                disabled={!canModifySettings}
+                                className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
+                            />
+                            <div className="ml-3">
+                                <span className="block text-sm font-medium text-slate-700 dark:text-slate-300">Aprobación de Compras (ERP)</span>
+                                <span className="block text-xs text-slate-500">Habilita el flujo de aprobación externo desde el ERP con botones de acción.</span>
+                            </div>
+                        </label>
                     </div>
                 </div>
 

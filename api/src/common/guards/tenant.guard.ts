@@ -7,14 +7,19 @@ export class TenantGuard implements CanActivate {
         context: ExecutionContext,
     ): boolean | Promise<boolean> | Observable<boolean> {
         const request = context.switchToHttp().getRequest();
-        const tenantId = request.headers['x-tenant-id'];
+        let tenantId = request.headers['x-tenant-id'];
+        const queryTenantId = request.query.tenantId;
+        const user = request.user;
+
+        // Superadmin override
+        if (queryTenantId && (user?.email === 'system@pitayacode.io' || user?.email === 'admin@pitayacode.io')) {
+            tenantId = queryTenantId;
+        }
 
         if (!tenantId) {
             throw new BadRequestException('X-Tenant-ID header is missing');
         }
 
-        // En una implementación real, aquí validaríamos que el tenantId existe en la DB
-        // y que el usuario autenticado tiene acceso a él.
         request['tenantId'] = tenantId;
 
         return true;

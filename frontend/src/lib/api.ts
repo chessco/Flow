@@ -105,10 +105,10 @@ class PitayaAPI {
             this.get('/whatsapp/conversations'),
         getHistory: (conversationId: string) =>
             this.get(`/whatsapp/history/${conversationId}`),
-        getSettings: () =>
-            this.get('/whatsapp/settings'),
-        updateSettings: (data: any) =>
-            this.post('/whatsapp/settings', data),
+        getSettings: (tenantId?: string) =>
+            this.get(`/whatsapp/settings${tenantId ? `?tenantId=${tenantId}` : ''}`),
+        updateSettings: (data: any, tenantId?: string) =>
+            this.post(`/whatsapp/settings${tenantId ? `?tenantId=${tenantId}` : ''}`, data),
         setStatus: (conversationId: string, status: string) =>
             this.post(`/whatsapp/conversation/${conversationId}/status`, { status }),
     };

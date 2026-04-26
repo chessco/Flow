@@ -72,8 +72,8 @@ export class WhatsappService {
             throw new InternalServerErrorException('WhatsApp configuration missing for this tenant');
         }
 
-        accessToken = accessToken.replace(/\s/g, '');
-
+        accessToken = accessToken.replace(/\s/g, '').replace(/^"|"$/g, '');
+        phoneNumberId = phoneNumberId.toString().replace(/\s/g, '').replace(/^"|"$/g, '');
 
         const url = `https://graph.facebook.com/${this.apiVersion}/${phoneNumberId}/messages`;
 
@@ -223,6 +223,136 @@ export class WhatsappService {
         }
     }
 
+    async sendTemplate(tenantId: string, userId: string, dto: { to: string, templateName: string, components: any[] }) {
+        let accessToken = '';
+        let phoneNumberId = '';
+
+        const whatsappAccount = await this.prisma.whatsAppAccount.findFirst({
+            where: { tenantId },
+            include: { phoneNumbers: true }
+        });
+
+        if (whatsappAccount?.accessToken) {
+            accessToken = this.decrypt(whatsappAccount.accessToken);
+            if (whatsappAccount.phoneNumbers?.[0]) {
+                phoneNumberId = whatsappAccount.phoneNumbers[0].phoneNumberId;
+            }
+        }
+
+        if (!accessToken) {
+            accessToken = this.configService.get('WHATSAPP_ACCESS_TOKEN');
+        }
+        if (!phoneNumberId) {
+            phoneNumberId = this.configService.get('WHATSAPP_PHONE_NUMBER_ID');
+        }
+
+        if (!accessToken || !phoneNumberId) {
+            throw new InternalServerErrorException('WhatsApp configuration missing for this tenant');
+        }
+
+        accessToken = accessToken.replace(/\s/g, '').replace(/^"|"$/g, '');
+        phoneNumberId = phoneNumberId.toString().replace(/\s/g, '').replace(/^"|"$/g, '');
+
+        const url = `https://graph.facebook.com/${this.apiVersion}/${phoneNumberId}/messages`;
+
+        try {
+            const cleanTo = dto.to.replace('+', '');
+            this.logger.log(`Sending WhatsApp Template ${dto.templateName} to ${cleanTo}`);
+
+            const response = await firstValueFrom(
+                this.httpService.post(
+                    url,
+                    {
+                        messaging_product: 'whatsapp',
+                        to: cleanTo,
+                        type: 'template',
+                        template: {
+                            name: dto.templateName,
+                            language: { code: 'es' },
+                            components: dto.components
+                        },
+                    },
+                    {
+                        headers: {
+                            Authorization: `Bearer ${accessToken}`,
+                            'Content-Type': 'application/json',
+                        },
+                    },
+                ),
+            );
+
+            const wamid = response.data.messages[0].id;
+
+            let conversation = await this.prisma.conversation.findFirst({
+                where: {
+                    tenantId,
+                    OR: [
+                        { contact: { phone: dto.to } },
+                        { lead: { phone: dto.to } }
+                    ]
+                },
+                include: { contact: true, lead: true }
+            });
+
+            if (!conversation) {
+                const lead = await this.prisma.lead.upsert({
+                    where: { tenantId_phone: { tenantId, phone: dto.to } },
+                    update: {},
+                    create: {
+                        phone: dto.to,
+                        tenantId,
+                        status: 'NEW'
+                    }
+                });
+
+                conversation = await this.prisma.conversation.create({
+                    data: {
+                        leadId: lead.id,
+                        tenantId,
+                        status: 'OPEN'
+                    },
+                    include: { contact: true, lead: true }
+                });
+            }
+
+            // Create a readable content preview for the inbox
+            let contentPreview = `[Template: ${dto.templateName}]`;
+            if (dto.templateName === 'aprobacion_compra') {
+                const body = dto.components.find(c => c.type === 'body');
+                if (body && body.parameters) {
+                    const req = body.parameters[0]?.text || '';
+                    const folio = body.parameters[1]?.text || '';
+                    const item = body.parameters[2]?.text || '';
+                    const amount = body.parameters[3]?.text || '';
+                    contentPreview = `📦 APROBACIÓN: ${folio} de ${req}\n🔹 Concepto: ${item}\n💰 Monto: ${amount}`;
+                }
+            }
+
+            const message = await this.prisma.message.create({
+                data: {
+                    conversationId: conversation.id,
+                    content: contentPreview,
+                    senderType: 'AGENT',
+                    senderId: userId,
+                    type: 'TEXT',
+                    status: 'SENT',
+                    providerId: wamid,
+                }
+            });
+
+            await this.prisma.conversation.update({
+                where: { id: conversation.id },
+                data: { lastMessageAt: new Date() }
+            });
+
+            return message;
+        } catch (error) {
+            const errorData = error.response?.data;
+            this.logger.error(`Error sending template: ${errorData ? JSON.stringify(errorData) : error.message}`);
+            throw new InternalServerErrorException('Failed to send WhatsApp template');
+        }
+    }
+
     /**
      * Processes incoming webhooks from WhatsApp.
      */
@@ -253,6 +383,13 @@ export class WhatsappService {
                 return;
             }
 
+            const tenant = await this.prisma.tenant.findUnique({
+                where: { id: tenantId },
+                select: { id: true, slug: true, skills: true }
+            });
+
+            const skills = (tenant?.skills as any) || {};
+
             for (const msg of value.messages) {
                 try {
                     const from = msg.from;
@@ -264,6 +401,8 @@ export class WhatsappService {
 
                     if (msg.type === 'text') {
                         content = msg.text.body;
+                    } else if (msg.type === 'button') {
+                        content = msg.button.text;
                     } else if (msg.type === 'image') {
                         const mediaId = msg.image.id;
                         content = msg.image.caption || `[IMAGE Media Received]`;
@@ -275,6 +414,16 @@ export class WhatsappService {
                         content = `[${msg.type.toUpperCase()} Media Received]`;
                         type = msg.type.toUpperCase();
                     }
+
+                    // --- SKILL ROUTING: PURCHASE APPROVAL ---
+                    if (skills.purchase_approval) {
+                        const isApprovalResponse = await this.handlePurchaseApproval(tenant!, msg, content);
+                        if (isApprovalResponse) {
+                            this.logger.log(`[Skill Router] Purchase approval processed for ${from}. Skipping sales logic.`);
+                            continue;
+                        }
+                    }
+                    // ----------------------------------------
 
                     // Find/Create Lead and Conversation
                     let conversation = await this.prisma.conversation.findFirst({
@@ -332,6 +481,7 @@ export class WhatsappService {
                         where: { id: conversation.id },
                         data: {
                             lastMessageAt: new Date(),
+                            lastCustomerMessageAt: new Date(),
                             status: 'OPEN'
                         }
                     });
@@ -345,7 +495,7 @@ export class WhatsappService {
                         const aiResponse = await this.aiService.generateAutonomousResponse(
                             tenantId,
                             conversation.id,
-                            isPaymentImage ? 'INSTRUCCIÓN: Se ha recibido un comprobante de pago. DEBES agradecer al usuario y SOLICITAR SU CORREO ELECTRÓNICO para enviar el paquete digital.' : undefined
+                            isPaymentImage ? 'INSTRUCCIÃ“N: Se ha recibido un comprobante de pago. DEBES agradecer al usuario y SOLICITAR SU CORREO ELECTRÃ“NICO para enviar el paquete digital.' : undefined
                         );
 
                         if (aiResponse) {
@@ -432,12 +582,13 @@ export class WhatsappService {
     }
 
     async getSettings(tenantId: string, user?: any) {
+        const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
         const account = await this.prisma.whatsAppAccount.findFirst({
             where: { tenantId },
             include: { phoneNumbers: true }
         });
 
-        const isSystemAdmin = user?.email === 'admin@pitayacode.io';
+        const isSystemAdmin = user?.email === 'system@pitayacode.io' || user?.email === 'admin@pitayacode.io';
         const maskValue = (val: string) => {
             if (!val) return '';
             if (isSystemAdmin) return val;
@@ -445,12 +596,24 @@ export class WhatsappService {
         };
 
         const rawToken = account?.accessToken ? this.decrypt(account.accessToken) : '';
+        
+        let allTenants = [];
+        if (user?.email === 'system@pitayacode.io') {
+            allTenants = await this.prisma.tenant.findMany({
+                select: { id: true, name: true, slug: true }
+            });
+        }
 
         return {
+            tenantId: tenant?.id,
+            tenantName: tenant?.name,
+            tenantSlug: tenant?.slug,
+            skills: tenant?.skills,
             accessToken: maskValue(rawToken),
             phoneNumberId: maskValue(account?.phoneNumbers?.[0]?.phoneNumberId || ''),
             wabaId: maskValue(account?.wabaId || ''),
-            verifyToken: this.configService.get('WHATSAPP_VERIFY_TOKEN')
+            verifyToken: this.configService.get('WHATSAPP_VERIFY_TOKEN'),
+            allTenants: allTenants.length > 0 ? allTenants : undefined
         };
     }
 
@@ -489,6 +652,17 @@ export class WhatsappService {
             });
         }
 
+        // Update Tenant Info if provided (Superadmin only or permitted fields)
+        if (dto.tenantSlug || dto.skills) {
+            await this.prisma.tenant.update({
+                where: { id: tenantId },
+                data: {
+                    slug: dto.tenantSlug,
+                    skills: dto.skills
+                }
+            });
+        }
+
         this.emitAudit({
             tenantId,
             action: 'whatsapp_update_settings',
@@ -506,12 +680,23 @@ export class WhatsappService {
                 where: { id: phone.id },
                 data: { phoneNumberId: dto.phoneNumberId }
             });
-        } else {
+        } else if (dto.phoneNumberId) {
             await this.prisma.whatsAppPhoneNumber.create({
                 data: {
                     whatsappAccountId: account.id,
                     phoneNumberId: dto.phoneNumberId,
                     displayPhoneNumber: 'Primary'
+                }
+            });
+        }
+
+        // Handle skills and tenant info updates if provided
+        if (dto.skills || dto.tenantName) {
+            await this.prisma.tenant.update({
+                where: { id: tenantId },
+                data: {
+                    name: dto.tenantName || undefined,
+                    skills: dto.skills || undefined
                 }
             });
         }
@@ -578,13 +763,24 @@ export class WhatsappService {
             include: { phoneNumbers: true }
         });
 
-        const accessToken = account?.accessToken ? this.decrypt(account.accessToken) : null;
-        const phoneNumberId = account?.phoneNumbers?.[0]?.phoneNumberId;
+        let accessToken = account?.accessToken ? this.decrypt(account.accessToken) : null;
+        let phoneNumberId = account?.phoneNumbers?.[0]?.phoneNumberId;
+
+        // Fallback to ENV if not found in DB
+        if (!accessToken) {
+            accessToken = this.configService.get('WHATSAPP_ACCESS_TOKEN');
+        }
+        if (!phoneNumberId) {
+            phoneNumberId = this.configService.get('WHATSAPP_PHONE_NUMBER_ID');
+        }
 
         if (!accessToken || !phoneNumberId) {
             this.logger.error(`Cannot send AI response: WhatsApp credentials missing for tenant ${tenantId}`);
             return;
         }
+
+        accessToken = accessToken.replace(/\s/g, '').replace(/^"|"$/g, '');
+        phoneNumberId = phoneNumberId.toString().replace(/\s/g, '').replace(/^"|"$/g, '');
 
         const url = `https://graph.facebook.com/${this.apiVersion}/${phoneNumberId}/messages`;
 
@@ -629,7 +825,8 @@ export class WhatsappService {
             // Ensure card is in "Contactado" stage
             await this.ensureContactedStage(tenantId, conversationId);
         } catch (error) {
-            this.logger.error(`Error sending AI response: ${error.message}`);
+            const errorData = error.response?.data;
+            this.logger.error(`Error sending AI response: ${errorData ? JSON.stringify(errorData) : error.message}`);
         }
     }
 
@@ -655,12 +852,12 @@ export class WhatsappService {
             const to = conversation.contact?.phone || conversation.lead?.phone;
             if (!to) return;
 
-            const content = `¡Pago verificado con éxito! 🎉 Aquí tienes tu paquete digital:
+            const content = `Â¡Pago verificado con Ã©xito! ðŸŽ‰ AquÃ­ tienes tu paquete digital:
 - Acceso al Dashboard: https://flow.pitayacode.io/login
-- Guía de Configuración (PDF): https://flow.pitayacode.io/downloads/guide.pdf
+- GuÃ­a de ConfiguraciÃ³n (PDF): https://flow.pitayacode.io/downloads/guide.pdf
 - Soporte VIP: +123456789 (WhatsApp)
 
-¡Gracias por tu compra!`;
+Â¡Gracias por tu compra!`;
 
             await this.sendInternalAiMessage(tenantId, conversationId, to, content);
             this.logger.log(`Digital package delivered to ${to} for conversation ${conversationId}`);
@@ -742,7 +939,7 @@ export class WhatsappService {
                         data: {
                             conversationId,
                             tenantId,
-                            reason: 'COMPROBANTE RECIBIDO: Pendiente de validación humana',
+                            reason: 'COMPROBANTE RECIBIDO: Pendiente de validaciÃ³n humana',
                             status: 'PENDING'
                         }
                     });
@@ -882,7 +1079,7 @@ export class WhatsappService {
 
                 // Token expired or invalid
                 if (errorCode === 190 || errorCode === 10) {
-                    this.createSystemAlert(tenantId || account.tenantId, `ERROR SISTEMA: Token de WhatsApp expirado - las imágenes no cargarán`);
+                    this.createSystemAlert(tenantId || account.tenantId, `ERROR SISTEMA: Token de WhatsApp expirado - las imÃ¡genes no cargarÃ¡n`);
                 }
 
                 throw err;
@@ -981,5 +1178,132 @@ export class WhatsappService {
             model: 'WHATSAPP_CONFIG',
             timestamp: new Date()
         });
+    }
+
+    /**
+     * Skill Handler: Purchase Approval
+     * Processes approval/rejection responses from WhatsApp.
+     */
+    private async handlePurchaseApproval(tenant: { id: string, slug: string }, msg: any, content: string): Promise<boolean> {
+        const from = msg.from;
+        const normalizedFrom = from.replace(/^521/, '52');
+        const normalizedContent = content.toLowerCase().trim();
+
+        // 1. Check if it's an approval/rejection keyword or button
+        // Meta templates often send exactly the button text
+        const isApproved = normalizedContent.includes('aprobar') || normalizedContent === 'ok' || normalizedContent === 'vobo';
+        const isRejected = normalizedContent.includes('rechazar') || normalizedContent === 'no';
+
+        if (!isApproved && !isRejected) {
+            return false; // Not an approval message
+        }
+
+        // 2. Extract Request ID (Ref: 123)
+        const refMatch = content.match(/Ref:\s*(\d+)/i);
+        let requestId: number | null = null;
+
+        if (refMatch) {
+            requestId = parseInt(refMatch[1], 10);
+        } else {
+            // Fallback for button clicks: find the most recent PENDING request for this phone
+            const lastRequest = await this.prisma.purchaseRequest.findFirst({
+                where: {
+                    tenantId: tenant.id,
+                    status: 'PENDING',
+                    phone: { in: [from, normalizedFrom] }
+                },
+                orderBy: { createdAt: 'desc' }
+            });
+            if (lastRequest) {
+                requestId = lastRequest.id;
+                this.logger.log(`[Purchase Approval] Resolved Ref ID ${requestId} from pending requests for ${from} (Button click)`);
+            }
+        }
+
+        if (!requestId) {
+            this.logger.warn(`[Purchase Approval] Approval intent detected but no Ref ID found and no pending request found for ${from}`);
+            return false;
+        }
+
+        const action = isApproved ? 'approved' : 'rejected';
+
+        // 3. Process with DB and Notify ERP
+        try {
+            const request = await this.prisma.purchaseRequest.findUnique({
+                where: { id: requestId }
+            });
+
+            if (!request || request.tenantId !== tenant.id) {
+                this.logger.error(`[Purchase Approval] Request ${requestId} not found for tenant ${tenant.slug}`);
+                return false;
+            }
+
+            if (request.status !== 'PENDING') {
+                await this.sendMessage(tenant.id, 'system', {
+                    to: from,
+                    content: `⚠️ Esta solicitud (Folio: ${request.folio}) ya fue procesada anteriormente como: ${request.status}`
+                });
+                return true;
+            }
+
+            // Update Status
+            await this.prisma.purchaseRequest.update({
+                where: { id: requestId },
+                data: { status: action.toUpperCase() }
+            });
+
+            // Notify ERP
+            const erpResult = await this.notifyErpOfApproval(request.externalId || requestId, action, from);
+
+            // Response to user
+            const approverName = erpResult?.approver_name || 'Usuario';
+            const responseMsg = isApproved
+                ? `✅ Solicitud ${request.folio} aprobada por ${approverName}. Se ha notificado al ERP.`
+                : `❌ Solicitud ${request.folio} ha sido RECHAZADA por ${approverName}.`;
+
+            await this.sendMessage(tenant.id, 'system', {
+                to: from,
+                content: responseMsg
+            });
+
+            this.logger.log({
+                skill: 'purchase_approval',
+                tenant: tenant.slug,
+                phone: from,
+                folio: request.folio,
+                request_id: requestId,
+                action: action,
+                approver: approverName,
+                result: erpResult ? 'success' : 'erp_notification_failed'
+            });
+
+            return true;
+        } catch (error) {
+            this.logger.error(`[Purchase Approval] Error processing request ${requestId}: ${error.message}`);
+            return false;
+        }
+    }
+
+    /**
+     * ERP Integration: Notifies the external system of the user's decision.
+     */
+    private async notifyErpOfApproval(requestId: number, action: 'approved' | 'rejected', phone: string): Promise<any> {
+        // In production this URL would come from configService or an integration table
+        const erpWebhookUrl = 'https://ohlala-erp.pitayacode.io/webhooks/approval.php';
+
+        try {
+            this.logger.log(`[ERP Sync] Notifying ERP of action ${action} for request ${requestId}`);
+            
+            const response = await firstValueFrom(this.httpService.post(erpWebhookUrl, {
+                request_id: requestId,
+                action: action,
+                phone: phone
+            }, { timeout: 5000 }));
+
+            return response.data;
+        } catch (error) {
+            this.logger.error(`[ERP Sync Error] Could not notify ERP: ${error.message}`);
+            return null; 
+        }
     }
 }

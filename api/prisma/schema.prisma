@@ -26,6 +26,27 @@ model Tenant {
   whatsappAccounts WhatsAppAccount[]
   Note             Note[]
   tasks            Task[]
+  purchaseRequests PurchaseRequest[]
+  skills           Json?    // { sales: boolean, purchase_approval: boolean }
+}
+
+model PurchaseRequest {
+  id          Int      @id @default(autoincrement())
+  externalId  Int?     // ID from ERP
+  folio       String
+  amount      String
+  item        String
+  requestor   String
+  phone       String
+  status      String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([phone])
+  @@index([externalId])
 }
 
 model User {
@@ -163,6 +184,7 @@ model Conversation {
   tenantId      String
   tenant        Tenant          @relation(fields: [tenantId], references: [id])
   lastMessageAt DateTime        @default(now())
+  lastCustomerMessageAt DateTime?
   status        String          @default("OPEN") // OPEN, PENDING, CLOSED
   aiManaged     Boolean         @default(false)
   messages      Message[]

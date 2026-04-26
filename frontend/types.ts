@@ -62,6 +62,7 @@ export interface Contact {
   tags?: string[];
   aiManaged?: boolean;
   unread?: boolean;
+  lastCustomerMessageAt?: string;
 }
 
 export interface Message {
