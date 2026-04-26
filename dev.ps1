@@ -14,9 +14,9 @@ if (!(Test-Path "api/node_modules")) {
 }
 
 # 2. Install Frontend dependencies
-if (!(Test-Path "frontend/node_modules")) {
+if (!(Test-Path "web/node_modules")) {
     Write-Host "Installing Frontend dependencies..." -ForegroundColor Yellow
-    Set-Location frontend
+    Set-Location web
     npm install
     Set-Location ..
 }
@@ -31,6 +31,6 @@ Set-Location ..
 Write-Host "Launching API and Frontend in separate windows..." -ForegroundColor Green
 
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd api; `$Host.UI.RawUI.WindowTitle = 'Flow - API'; npm run dev"
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd frontend; `$Host.UI.RawUI.WindowTitle = 'Flow - Frontend'; npm run dev"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd web; `$Host.UI.RawUI.WindowTitle = 'Flow - Web'; npm run dev"
 
 Write-Host "Done! Services are running in their own windows." -ForegroundColor Gray

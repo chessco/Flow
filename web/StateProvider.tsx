@@ -191,7 +191,7 @@ export const StateProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const fetchTasks = useCallback(async (personId?: string, personType?: string) => {
         try {
             const fetched = await api.crm.tasks.getAll(personId, personType);
-            // Map backend Task to frontend Task interface
+            // Map backend Task to web Task interface
             const mapped = fetched.map((t: any) => ({
                 id: t.id,
                 title: t.title,

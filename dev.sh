@@ -11,9 +11,9 @@ if [ ! -d "api/node_modules" ]; then
     cd api && npm install && cd ..
 fi
 
-if [ ! -d "frontend/node_modules" ]; then
+if [ ! -d "web/node_modules" ]; then
     echo "📦 Instalando dependencias del Frontend..."
-    cd frontend && npm install && cd ..
+    cd web && npm install && cd ..
 fi
 
 # 2. Generar cliente de Prisma
@@ -29,4 +29,4 @@ npx concurrently \
   -n "API,WEB" \
   -c "blue,green" \
   "cd api && npm run dev" \
-  "cd frontend && npm run dev"
+  "cd web && npm run dev"

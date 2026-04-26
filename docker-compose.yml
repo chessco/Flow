@@ -14,7 +14,7 @@ services:
   api:
     build:
       context: .
-      dockerfile: ./apps/server/Dockerfile
+      dockerfile: ./api/Dockerfile
     container_name: pitayacode_api
     environment:
       DATABASE_URL: "mysql://root:root_password_prod@db:3306/flow_db"
@@ -27,7 +27,7 @@ services:
   web:
     build:
       context: .
-      dockerfile: ./apps/web/Dockerfile
+      dockerfile: ./web/Dockerfile
     container_name: pitayacode_web
     ports:
       - "80:80"
