@@ -35,9 +35,13 @@ export class ExternalIntegrationController {
             throw new UnauthorizedException('Invalid API Key');
         }
 
-        // 2. Normalize phone (ensure country code)
+        // 2. Normalize phone (ensure country code and handle Mexico 521)
         let normalizedPhone = body.phone.replace(/\D/g, '');
-        if (!normalizedPhone.startsWith('52')) {
+        
+        // Remove 521 prefix if it exists (common in Mexico contacts but bad for Meta API)
+        if (normalizedPhone.startsWith('521') && normalizedPhone.length === 13) {
+            normalizedPhone = '52' + normalizedPhone.substring(3);
+        } else if (!normalizedPhone.startsWith('52') && normalizedPhone.length === 10) {
             normalizedPhone = '52' + normalizedPhone; 
         }
 
