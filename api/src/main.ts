@@ -14,16 +14,20 @@ async function bootstrap() {
         forbidNonWhitelisted: true,
     }));
 
-    // Enable CORS for frontend
+    // Enable CORS for web
+    const corsOrigins = configService.get<string>('CORS_ORIGINS');
+    const origins = corsOrigins ? corsOrigins.split(',').map(o => o.trim()) : [
+        'https://flow.pitayacode.io',
+        'https://www.flow.pitayacode.io',
+        'http://localhost:3000',
+        'http://localhost:5173'
+    ];
+
     app.enableCors({
-        origin: [
-            'https://flow.pitayacode.io',
-            'https://www.flow.pitayacode.io',
-            'http://localhost:3000',
-            'http://localhost:5173'
-        ],
+        origin: origins,
         methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
         credentials: true,
+        allowedHeaders: 'Content-Type, Accept, Authorization, x-internal-key, x-tenant-slug',
     });
 
     const port = configService.get<number>('PORT') || 3001;
