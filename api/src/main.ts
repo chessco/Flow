@@ -27,7 +27,7 @@ async function bootstrap() {
         origin: origins,
         methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
         credentials: true,
-        allowedHeaders: 'Content-Type, Accept, Authorization, x-internal-key, x-tenant-slug',
+        allowedHeaders: 'Content-Type, Accept, Authorization, x-internal-key, x-tenant-slug, x-tenant-id',
     });
 
     const port = configService.get<number>('PORT') || 3001;
