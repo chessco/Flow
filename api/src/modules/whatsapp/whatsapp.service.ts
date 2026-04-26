@@ -392,7 +392,13 @@ export class WhatsappService {
 
             for (const msg of value.messages) {
                 try {
-                    const from = msg.from;
+                    let from = msg.from;
+                    
+                    // Normalize incoming Mexico numbers (remove the '1')
+                    if (from.startsWith('521') && from.length === 13) {
+                        from = '52' + from.substring(3);
+                    }
+                    
                     const contactName = value.contacts?.[0]?.profile?.name;
                     const wamid = msg.id;
 
