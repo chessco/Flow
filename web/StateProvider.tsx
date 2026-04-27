@@ -225,6 +225,12 @@ export const StateProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             const fetchedConversations = await api.whatsapp.getConversations();
             fetchTasks(); // Load tasks in parallel
 
+            if (!Array.isArray(fetchedConversations)) {
+                console.error('API Error: getConversations did not return an array. Response:', fetchedConversations);
+                // Return safely to avoid crashing the app
+                return;
+            }
+
             const mappedContacts: Contact[] = fetchedConversations.map((c: any) => {
                 const person = c.contact || c.lead;
                 return {
