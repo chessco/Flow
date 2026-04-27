@@ -88,8 +88,10 @@ export class WhatsappService {
                         messaging_product: 'whatsapp',
                         recipient_type: 'individual',
                         to: cleanTo,
-                        type: 'text',
-                        text: { preview_url: false, body: dto.content },
+                        type: (dto as any).imageUrl ? 'image' : 'text',
+                        [(dto as any).imageUrl ? 'image' : 'text']: (dto as any).imageUrl 
+                            ? { link: (dto as any).imageUrl, caption: dto.content }
+                            : { preview_url: false, body: dto.content },
                     },
                     {
                         headers: {
@@ -143,7 +145,7 @@ export class WhatsappService {
                     content: dto.content,
                     senderType: 'AGENT',
                     senderId: userId,
-                    type: 'TEXT',
+                    type: (dto as any).imageUrl ? 'IMAGE' : 'TEXT',
                     status: 'SENT',
                     providerId: wamid,
                 }
@@ -1255,26 +1257,21 @@ export class WhatsappService {
 
             this.logger.log(`[Skill Router] Queue management triggered for ${from}`);
 
-            // If we don't have a name, ask for it
-            if (!lead.name || lead.name === from) {
-                await this.prisma.lead.update({
-                    where: { id: lead.id },
-                    data: { tags: { ...(lead.tags as any), queue_state: 'AWAITING_NAME' } }
-                });
+            // Always ask for name to be sure
+            await this.prisma.lead.update({
+                where: { id: lead.id },
+                data: { tags: { ...(lead.tags as any), queue_state: 'AWAITING_NAME' } }
+            });
 
-                await this.sendMessage(tenant.id, 'system', {
-                    to: from,
-                    content: '¡Hola! 👋 Con gusto te ayudo con tu turno. ¿Cuál es tu nombre completo?'
-                });
-            } else {
-                // If we already have the name, go straight to Kind
-                await this.prisma.lead.update({
-                    where: { id: lead.id },
-                    data: { tags: { ...(lead.tags as any), queue_state: 'AWAITING_KIND', customer_name: lead.name } }
-                });
+            const welcomeMsg = lead.name && lead.name !== from 
+                ? `¡Hola ${lead.name}! 👋 Con gusto te ayudo con tu turno. Para confirmar, ¿cuál es tu nombre completo para el ticket?`
+                : '¡Hola! 👋 Con gusto te ayudo con tu turno. ¿Cuál es tu nombre completo?';
 
-                await this.sendQueueKindMenu(tenant.id, from, lead.name);
-            }
+            await this.sendMessage(tenant.id, 'system', {
+                to: from,
+                content: welcomeMsg
+            });
+            
             return true;
         }
 
@@ -1320,11 +1317,13 @@ export class WhatsappService {
 
                 // Link to track position (Production URL)
                 const trackingLink = `https://luxuryos.pitayacode.io/q/${luxuryResult.qrToken}`;
+                const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(trackingLink)}`;
 
                 await this.sendMessage(tenant.id, 'system', {
                     to: from,
-                    content: `¡Listo ${customerName}! ✅\n\nTu turno es el *${luxuryResult.code}*.\n\n📱 Sigue tu lugar en la fila en tiempo real aquí:\n${trackingLink}\n\nTe avisaremos por este medio cuando sea tu turno. ¡Gracias por tu paciencia! 🙏`
-                });
+                    content: `¡Listo ${customerName}! ✅\n\nTu turno es el *${luxuryResult.code}*.\n\n📱 Sigue tu lugar en la fila en tiempo real aquí:\n${trackingLink}\n\nTe avisaremos por este medio cuando sea tu turno. ¡Gracias por tu paciencia! 🙏`,
+                    imageUrl: qrImageUrl
+                } as any);
 
                 // Reset state
                 await this.prisma.lead.update({
