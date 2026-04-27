@@ -88,7 +88,7 @@ const ContactsList: React.FC = () => {
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex gap-2 justify-center">
-                                            {contact.tags.map(tag => (
+                                            {Array.isArray(contact.tags) && contact.tags.map(tag => (
                                                 <span key={tag} className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-semibold">
                                                     {tag}
                                                 </span>

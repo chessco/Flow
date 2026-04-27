@@ -177,7 +177,7 @@ const Inbox: React.FC = () => {
                         </p>
                       </div>
                       <div className="mt-2 flex gap-1">
-                        {contact.tags?.map(tag => (
+                        {Array.isArray(contact.tags) && contact.tags.map(tag => (
                           <span key={tag} className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded text-[10px] font-medium">{tag}</span>
                         ))}
                       </div>
