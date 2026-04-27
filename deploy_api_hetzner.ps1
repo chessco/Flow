@@ -8,14 +8,21 @@ $SSH_KEY = "$env:USERPROFILE\.ssh\id_citaia"
 Write-Host "--- Iniciando Despliegue de Produccion (Hetzner) ---" -ForegroundColor Cyan
 
 try {
-    Write-Host "Step 1: Conectando a $SERVER_IP y actualizando codigo..." -ForegroundColor Yellow
+    Write-Host "Step 1: Empaquetando y subiendo código de la API de Flow..." -ForegroundColor Yellow
+    
+    # Comprimir api (excluyendo node_modules y dist)
+    tar --exclude="node_modules" --exclude="dist" -czf deploy_flow_api.tar.gz -C . api
+    
+    scp -i $SSH_KEY -o StrictHostKeyChecking=no deploy_flow_api.tar.gz root@${SERVER_IP}:/opt/pitaya/flow/
+
+    Write-Host "Step 2: Descomprimiendo y reconstruyendo..." -ForegroundColor Yellow
     
     $remoteCommands = @"
         cd /opt/pitaya/flow
-        echo 'Actualizando repositorio git...'
-        git fetch --all --prune
-        git reset --hard origin/main
-        git clean -fd
+        
+        echo 'Descomprimiendo archivos...'
+        tar -xzf deploy_flow_api.tar.gz
+        rm deploy_flow_api.tar.gz
         
         echo 'Reconstruyendo contenedor flow-api-prod...'
         cd api

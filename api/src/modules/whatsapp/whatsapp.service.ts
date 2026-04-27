@@ -1412,12 +1412,17 @@ export class WhatsappService {
         // We'll use the fixed tenant ID for LuxuryOS
         const luxuryTenantId = '071ab28f-da33-4bf8-90ed-f8a1af880078'; 
 
+        this.logger.log(`[Queue Skill] Creating Luxury ticket for ${data.customerName} (${data.customerPhone}) - Kind: ${data.kind}`);
+
         const response = await firstValueFrom(this.httpService.post(luxuryApiUrl, {
             customerName: data.customerName,
             customerPhone: data.customerPhone,
             kind: data.kind
         }, {
-            headers: { 'x-tenant-id': luxuryTenantId },
+            headers: { 
+                'x-tenant-id': luxuryTenantId,
+                'Content-Type': 'application/json'
+            },
             timeout: 5000
         }));
 
