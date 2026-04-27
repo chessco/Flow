@@ -65,6 +65,17 @@ export class WhatsappController {
         return this.whatsappService.handleWebhook(payload);
     }
 
+    @Post('internal/send')
+    async internalSend(@Body() body: { tenantId: string, to: string, content: string, key: string }) {
+        if (body.key !== process.env.INTERNAL_API_KEY) {
+            return { error: 'Invalid internal key' };
+        }
+        return this.whatsappService.sendMessage(body.tenantId, 'system', {
+            to: body.to,
+            content: body.content
+        });
+    }
+
     @UseGuards(AuthGuard('jwt'), TenantGuard)
     @Post('conversation/:id/status')
     async updateStatus(@Req() req: any, @Param('id') id: string, @Body() body: { status: string }) {
