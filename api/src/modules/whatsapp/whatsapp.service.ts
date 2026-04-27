@@ -78,7 +78,11 @@ export class WhatsappService {
         const url = `https://graph.facebook.com/${this.apiVersion}/${phoneNumberId}/messages`;
 
         try {
-            const cleanTo = dto.to.replace('+', '');
+            let cleanTo = dto.to.replace('+', '');
+            // Normalize Mexico numbers (remove the '1')
+            if (cleanTo.startsWith('521') && cleanTo.length === 13) {
+                cleanTo = '52' + cleanTo.substring(3);
+            }
             this.logger.log(`Sending WhatsApp message to ${cleanTo}`);
 
             const response = await firstValueFrom(
@@ -109,8 +113,8 @@ export class WhatsappService {
                 where: {
                     tenantId,
                     OR: [
-                        { contact: { phone: dto.to } },
-                        { lead: { phone: dto.to } }
+                        { contact: { phone: cleanTo } },
+                        { lead: { phone: cleanTo } }
                     ]
                 },
                 include: { contact: true, lead: true }
@@ -119,10 +123,10 @@ export class WhatsappService {
             if (!conversation) {
                 // If no contact/lead exists, create a lead by default
                 const lead = await this.prisma.lead.upsert({
-                    where: { tenantId_phone: { tenantId, phone: dto.to } },
+                    where: { tenantId_phone: { tenantId, phone: cleanTo } },
                     update: {},
                     create: {
-                        phone: dto.to,
+                        phone: cleanTo,
                         tenantId,
                         status: 'NEW'
                     }
@@ -400,6 +404,7 @@ export class WhatsappService {
                     // Normalize incoming Mexico numbers (remove the '1')
                     if (from.startsWith('521') && from.length === 13) {
                         from = '52' + from.substring(3);
+                        msg.from = from; // Update msg object for skills
                     }
                     
                     const contactName = value.contacts?.[0]?.profile?.name;
