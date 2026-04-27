@@ -464,7 +464,7 @@ export class WhatsappService {
                     if (!conversation) {
                         const lead = await this.prisma.lead.upsert({
                             where: { tenantId_phone: { tenantId, phone: from } },
-                            update: { name: contactName },
+                            update: {}, // Crucial fix: Do not overwrite the user's real name with their WhatsApp nickname on every message!
                             create: {
                                 phone: from,
                                 name: contactName,
@@ -1267,7 +1267,9 @@ export class WhatsappService {
             else if (normalizedContent.includes('reparar') || normalizedContent.includes('servicio')) kind = 'REPAIR';
             else if (normalizedContent.includes('recoger') || normalizedContent.includes('entrega')) kind = 'PICKUP';
 
-            const hasValidName = lead.name && lead.name !== from && lead.name.length > 2;
+            const tags = (lead.tags as any) || {};
+            // A name is ONLY valid if the user explicitly provided it previously (ignoring WhatsApp auto-nicknames)
+            const hasValidName = tags.real_name_provided === true && lead.name && lead.name.length > 2;
 
             if (hasValidName && kind) {
                 // Have both! Generate ticket immediately.
@@ -1279,23 +1281,28 @@ export class WhatsappService {
                 // Have name, ask for kind
                 await this.prisma.lead.update({
                     where: { id: lead.id },
-                    data: { tags: { ...(lead.tags as any), queue_state: 'AWAITING_KIND', customer_name: lead.name } }
+                    data: { tags: { ...tags, queue_state: 'AWAITING_KIND', customer_name: lead.name } }
                 });
                 await this.sendQueueKindMenu(tenant.id, from, lead.name);
                 return true;
             }
 
-            // Don't have name.
+            // Don't have a reliable real name.
             const nextState = kind ? 'AWAITING_NAME_FOR_TICKET' : 'AWAITING_NAME';
             
             await this.prisma.lead.update({
                 where: { id: lead.id },
-                data: { tags: { ...(lead.tags as any), queue_state: nextState, pending_kind: kind } }
+                data: { tags: { ...tags, queue_state: nextState, pending_kind: kind } }
             });
+
+            // Customize greeting based on intent
+            let askMsg = '¡Hola! 👋 Con gusto te ayudo con tu turno. ¿Cuál es tu nombre completo?';
+            if (kind === 'PICKUP') askMsg = '¡Hola! 👋 Para poder entregarte, ¿a nombre de quién está la orden?';
+            else if (kind === 'SALE' || kind === 'REPAIR') askMsg = '¡Hola! 👋 Con gusto te atiendo. ¿A nombre de quién hacemos el turno?';
 
             await this.sendMessage(tenant.id, 'system', {
                 to: from,
-                content: '¡Hola! 👋 Con gusto te ayudo con tu turno. ¿Cuál es tu nombre completo?'
+                content: askMsg
             });
             
             return true;
@@ -1316,7 +1323,7 @@ export class WhatsappService {
                 where: { id: lead.id },
                 data: { 
                     name,
-                    tags: { ...tags, queue_state: 'AWAITING_KIND', customer_name: name } 
+                    tags: { ...tags, queue_state: 'AWAITING_KIND', customer_name: name, real_name_provided: true } 
                 }
             });
 
@@ -1370,6 +1377,7 @@ export class WhatsappService {
             const tags = (lead.tags as any) || {};
             delete tags.pending_kind;
             tags.queue_state = 'IDLE';
+            tags.real_name_provided = true; // Mark as explicitly provided by the user!
 
             await this.prisma.lead.update({
                 where: { id: lead.id },

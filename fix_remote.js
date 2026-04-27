@@ -1,0 +1,1 @@
+const { PrismaClient } = require('@prisma/client'); const prisma = new PrismaClient(); async function main() { await prisma.lead.updateMany({ where: { phone: { contains: '6442221844' } }, data: { name: '526442221844', tags: { queue_state: 'IDLE' } } }); console.log('Reset complete!'); } main();
