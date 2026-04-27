@@ -1250,38 +1250,68 @@ export class WhatsappService {
         // 2. State Machine Logic
         if (state === 'IDLE') {
             // Trigger: keywords
-            const triggerKeywords = ['turno', 'fila', 'vengo a', 'atencion', 'atención', 'quiero comprar', 'quiero reparar', 'recoger'];
+            const triggerKeywords = ['turno', 'fila', 'vengo a', 'atencion', 'atención', 'quiero comprar', 'quiero reparar', 'recoger', 'dame un turno'];
             const isTrigger = triggerKeywords.some(k => normalizedContent.includes(k));
 
             if (!isTrigger) return false;
 
             this.logger.log(`[Skill Router] Queue management triggered for ${from}`);
 
-            // Always ask for name to be sure
+            let kind: 'SALE' | 'REPAIR' | 'PICKUP' | null = null;
+            if (normalizedContent.includes('comprar') || normalizedContent.includes('venta')) kind = 'SALE';
+            else if (normalizedContent.includes('reparar') || normalizedContent.includes('servicio')) kind = 'REPAIR';
+            else if (normalizedContent.includes('recoger') || normalizedContent.includes('entrega')) kind = 'PICKUP';
+
+            const hasValidName = lead.name && lead.name !== from && lead.name.length > 2;
+
+            if (hasValidName && kind) {
+                // Have both! Generate ticket immediately.
+                await this.generateTicketAndNotify(tenant.id, from, lead, kind, lead.name);
+                return true;
+            }
+
+            if (hasValidName && !kind) {
+                // Have name, ask for kind
+                await this.prisma.lead.update({
+                    where: { id: lead.id },
+                    data: { tags: { ...(lead.tags as any), queue_state: 'AWAITING_KIND', customer_name: lead.name } }
+                });
+                await this.sendQueueKindMenu(tenant.id, from, lead.name);
+                return true;
+            }
+
+            // Don't have name.
+            const nextState = kind ? 'AWAITING_NAME_FOR_TICKET' : 'AWAITING_NAME';
+            
             await this.prisma.lead.update({
                 where: { id: lead.id },
-                data: { tags: { ...(lead.tags as any), queue_state: 'AWAITING_NAME' } }
+                data: { tags: { ...(lead.tags as any), queue_state: nextState, pending_kind: kind } }
             });
-
-            const welcomeMsg = lead.name && lead.name !== from 
-                ? `¡Hola ${lead.name}! 👋 Con gusto te ayudo con tu turno. Para confirmar, ¿cuál es tu nombre completo para el ticket?`
-                : '¡Hola! 👋 Con gusto te ayudo con tu turno. ¿Cuál es tu nombre completo?';
 
             await this.sendMessage(tenant.id, 'system', {
                 to: from,
-                content: welcomeMsg
+                content: '¡Hola! 👋 Con gusto te ayudo con tu turno. ¿Cuál es tu nombre completo?'
             });
             
             return true;
         }
 
-        if (state === 'AWAITING_NAME') {
+        if (state === 'AWAITING_NAME' || state === 'AWAITING_NAME_FOR_TICKET') {
             const name = content.trim();
+            const tags = (lead.tags as any) || {};
+
+            if (state === 'AWAITING_NAME_FOR_TICKET') {
+                const kind = tags.pending_kind;
+                await this.generateTicketAndNotify(tenant.id, from, lead, kind, name);
+                return true;
+            }
+
+            // Normal AWAITING_NAME -> AWAITING_KIND
             await this.prisma.lead.update({
                 where: { id: lead.id },
                 data: { 
                     name,
-                    tags: { ...(lead.tags as any), queue_state: 'AWAITING_KIND', customer_name: name } 
+                    tags: { ...tags, queue_state: 'AWAITING_KIND', customer_name: name } 
                 }
             });
 
@@ -1305,43 +1335,49 @@ export class WhatsappService {
                 return true;
             }
 
-            // Final Step: Create ticket in LuxuryOS
             const customerName = (lead.tags as any)?.customer_name || lead.name || 'Cliente';
-            
-            try {
-                const luxuryResult = await this.createLuxuryTicket(tenant.id, {
-                    customerName,
-                    customerPhone: from,
-                    kind: kind
-                });
-
-                // Link to track position (Production URL)
-                const trackingLink = `https://luxuryos.pitayacode.io/q/${luxuryResult.qrToken}`;
-                const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(trackingLink)}`;
-
-                await this.sendMessage(tenant.id, 'system', {
-                    to: from,
-                    content: `¡Listo ${customerName}! ✅\n\nTu turno es el *${luxuryResult.code}*.\n\n📱 Sigue tu lugar en la fila en tiempo real aquí:\n${trackingLink}\n\nTe avisaremos por este medio cuando sea tu turno. ¡Gracias por tu paciencia! 🙏`,
-                    imageUrl: qrImageUrl
-                } as any);
-
-                // Reset state
-                await this.prisma.lead.update({
-                    where: { id: lead.id },
-                    data: { tags: { ...(lead.tags as any), queue_state: 'IDLE' } }
-                });
-
-            } catch (error) {
-                this.logger.error(`[Queue Skill] Failed to create Luxury ticket: ${error.message}`);
-                await this.sendMessage(tenant.id, 'system', {
-                    to: from,
-                    content: 'Lo siento, hubo un error al generar tu turno. Por favor, inténtalo de nuevo en unos minutos o acércate al mostrador.'
-                });
-            }
+            await this.generateTicketAndNotify(tenant.id, from, lead, kind, customerName);
             return true;
         }
 
         return false;
+    }
+
+    private async generateTicketAndNotify(tenantId: string, from: string, lead: any, kind: 'SALE' | 'REPAIR' | 'PICKUP', customerName: string) {
+        try {
+            const luxuryResult = await this.createLuxuryTicket(tenantId, {
+                customerName,
+                customerPhone: from,
+                kind: kind
+            });
+
+            // Link to track position (Production URL)
+            const trackingLink = `https://luxuryos.pitayacode.io/q/${luxuryResult.qrToken}`;
+            const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(trackingLink)}`;
+
+            await this.sendMessage(tenantId, 'system', {
+                to: from,
+                content: `¡Listo ${customerName}! ✅\n\nTu turno es el *${luxuryResult.code}*.\n\n📱 Sigue tu lugar en la fila en tiempo real aquí:\n${trackingLink}\n\nTe avisaremos por este medio cuando sea tu turno. ¡Gracias por tu paciencia! 🙏`,
+                imageUrl: qrImageUrl
+            } as any);
+
+            // Update name and reset state
+            const tags = (lead.tags as any) || {};
+            delete tags.pending_kind;
+            tags.queue_state = 'IDLE';
+
+            await this.prisma.lead.update({
+                where: { id: lead.id },
+                data: { name: customerName, tags }
+            });
+
+        } catch (error) {
+            this.logger.error(`[Queue Skill] Failed to create Luxury ticket: ${error.message}`);
+            await this.sendMessage(tenantId, 'system', {
+                to: from,
+                content: 'Lo siento, hubo un error al generar tu turno. Por favor, inténtalo de nuevo en unos minutos o acércate al mostrador.'
+            });
+        }
     }
 
     private async sendQueueKindMenu(tenantId: string, to: string, name: string) {
