@@ -15,7 +15,7 @@ export const WhatsAppSettings: React.FC = () => {
         verifyToken: '',
         tenantName: '',
         tenantSlug: '',
-        skills: { sales: false, purchase_approval: false },
+        skills: { sales: false, purchase_approval: false, queue_management: false },
         allTenants: [] as any[]
     });
     const [loading, setLoading] = useState(true);
@@ -123,6 +123,9 @@ export const WhatsAppSettings: React.FC = () => {
                         )}
                         {settings.skills?.purchase_approval && (
                             <span className="px-2 py-1 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-full uppercase">Skill: Aprobaciones</span>
+                        )}
+                        {settings.skills?.queue_management && (
+                            <span className="px-2 py-1 bg-purple-100 text-purple-700 text-[10px] font-bold rounded-full uppercase">Skill: Turnos</span>
                         )}
                     </div>
                 </div>
@@ -247,6 +250,23 @@ export const WhatsAppSettings: React.FC = () => {
                             <div className="ml-3">
                                 <span className="block text-sm font-medium text-slate-700 dark:text-slate-300">Aprobación de Compras (ERP)</span>
                                 <span className="block text-xs text-slate-500">Habilita el flujo de aprobación externo desde el ERP con botones de acción.</span>
+                            </div>
+                        </label>
+
+                        <label className="flex items-center cursor-pointer group">
+                            <input
+                                type="checkbox"
+                                checked={settings.skills?.queue_management}
+                                onChange={(e) => setSettings({
+                                    ...settings,
+                                    skills: { ...settings.skills, queue_management: e.target.checked }
+                                })}
+                                disabled={!canModifySettings}
+                                className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
+                            />
+                            <div className="ml-3">
+                                <span className="block text-sm font-medium text-slate-700 dark:text-slate-300">Fila y Turnos (Queue)</span>
+                                <span className="block text-xs text-slate-500">Permite gestionar turnos y filas de espera integradas con LuxuryOS.</span>
                             </div>
                         </label>
                     </div>

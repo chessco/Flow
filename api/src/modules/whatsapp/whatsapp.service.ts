@@ -377,7 +377,7 @@ export class WhatsappService {
         // Handle Incoming Messages
         if (value.messages && value.messages.length > 0) {
             const tenantId = await this.getTenantIdByPhoneId(value.metadata.phone_number_id);
-            this.logger.log(`RESOLVED TENANT_ID: ${tenantId} for phoneId: ${value.metadata.phone_number_id}`);
+            this.logger.log(`[Webhook] Incoming from phoneId: ${value.metadata.phone_number_id} | resolved tenantId: ${tenantId}`);
             if (!tenantId) {
                 this.logger.warn(`Received message for unknown phone number ID: ${value.metadata.phone_number_id}`);
                 return;
@@ -389,6 +389,7 @@ export class WhatsappService {
             });
 
             const skills = (tenant?.skills as any) || {};
+            this.logger.log(`[Webhook] Tenant Skills: ${JSON.stringify(skills)}`);
 
             for (const msg of value.messages) {
                 try {
@@ -425,7 +426,17 @@ export class WhatsappService {
                     if (skills.purchase_approval) {
                         const isApprovalResponse = await this.handlePurchaseApproval(tenant!, msg, content);
                         if (isApprovalResponse) {
-                            this.logger.log(`[Skill Router] Purchase approval processed for ${from}. Skipping sales logic.`);
+                            this.logger.log(`[Skill Router] Purchase approval processed for ${from}. Skipping other logic.`);
+                            continue;
+                        }
+                    }
+
+                    // --- SKILL ROUTING: QUEUE MANAGEMENT ---
+                    this.logger.log(`[Skill Router] Checking Queue Skill... msg.from: ${msg.from} | normalized.from: ${from} | queue_management: ${skills.queue_management}`);
+                    if (skills.queue_management) {
+                        const isQueueHandled = await this.handleQueueSkill(tenant!, msg, content);
+                        if (isQueueHandled) {
+                            this.logger.log(`[Skill Router] Queue management handled for ${from}. Skipping other logic.`);
                             continue;
                         }
                     }
@@ -1190,6 +1201,181 @@ export class WhatsappService {
      * Skill Handler: Purchase Approval
      * Processes approval/rejection responses from WhatsApp.
      */
+    private async handleQueueSkill(tenant: { id: string, slug: string }, msg: any, content: string): Promise<boolean> {
+        const from = msg.from;
+        const normalizedContent = content.toLowerCase().trim();
+
+        // 1. Find the conversation or lead to check current state
+        let lead: any = null;
+        
+        // Variants for Mexico numbers
+        let altFrom = from;
+        if (from.startsWith('521') && from.length === 13) {
+            altFrom = '52' + from.substring(3);
+        } else if (from.startsWith('52') && from.length === 12) {
+            altFrom = '521' + from.substring(2);
+        }
+
+        const conversation = await this.prisma.conversation.findFirst({
+            where: {
+                tenantId: tenant.id,
+                OR: [
+                    { contact: { phone: from } },
+                    { contact: { phone: altFrom } },
+                    { lead: { phone: from } },
+                    { lead: { phone: altFrom } }
+                ]
+            },
+            include: { lead: true }
+        });
+
+        if (conversation && conversation.lead) {
+            lead = conversation.lead;
+        } else {
+            // Fallback: search lead directly by phone (both variants)
+            lead = await this.prisma.lead.findFirst({
+                where: {
+                    tenantId: tenant.id,
+                    phone: { in: [from, altFrom] }
+                }
+            });
+        }
+
+        if (!lead) return false;
+
+        const state = (lead.tags as any)?.queue_state || 'IDLE';
+
+        // 2. State Machine Logic
+        if (state === 'IDLE') {
+            // Trigger: keywords
+            const triggerKeywords = ['turno', 'fila', 'vengo a', 'atencion', 'atención', 'quiero comprar', 'quiero reparar', 'recoger'];
+            const isTrigger = triggerKeywords.some(k => normalizedContent.includes(k));
+
+            if (!isTrigger) return false;
+
+            this.logger.log(`[Skill Router] Queue management triggered for ${from}`);
+
+            // If we don't have a name, ask for it
+            if (!lead.name || lead.name === from) {
+                await this.prisma.lead.update({
+                    where: { id: lead.id },
+                    data: { tags: { ...(lead.tags as any), queue_state: 'AWAITING_NAME' } }
+                });
+
+                await this.sendMessage(tenant.id, 'system', {
+                    to: from,
+                    content: '¡Hola! 👋 Con gusto te ayudo con tu turno. ¿Cuál es tu nombre completo?'
+                });
+            } else {
+                // If we already have the name, go straight to Kind
+                await this.prisma.lead.update({
+                    where: { id: lead.id },
+                    data: { tags: { ...(lead.tags as any), queue_state: 'AWAITING_KIND', customer_name: lead.name } }
+                });
+
+                await this.sendQueueKindMenu(tenant.id, from, lead.name);
+            }
+            return true;
+        }
+
+        if (state === 'AWAITING_NAME') {
+            const name = content.trim();
+            await this.prisma.lead.update({
+                where: { id: lead.id },
+                data: { 
+                    name,
+                    tags: { ...(lead.tags as any), queue_state: 'AWAITING_KIND', customer_name: name } 
+                }
+            });
+
+            await this.sendQueueKindMenu(tenant.id, from, name);
+            return true;
+        }
+
+        if (state === 'AWAITING_KIND') {
+            const choice = normalizedContent;
+            let kind: 'SALE' | 'REPAIR' | 'PICKUP' | null = null;
+
+            if (choice.includes('1') || choice.includes('comprar') || choice.includes('venta')) kind = 'SALE';
+            else if (choice.includes('2') || choice.includes('reparar') || choice.includes('servicio')) kind = 'REPAIR';
+            else if (choice.includes('3') || choice.includes('recoger') || choice.includes('entrega')) kind = 'PICKUP';
+
+            if (!kind) {
+                await this.sendMessage(tenant.id, 'system', {
+                    to: from,
+                    content: 'Por favor, selecciona una opción válida:\n1. 🛒 Comprar\n2. 🛠️ Reparar\n3. 📦 Recoger'
+                });
+                return true;
+            }
+
+            // Final Step: Create ticket in LuxuryOS
+            const customerName = (lead.tags as any)?.customer_name || lead.name || 'Cliente';
+            
+            try {
+                const luxuryResult = await this.createLuxuryTicket(tenant.id, {
+                    customerName,
+                    customerPhone: from,
+                    kind: kind
+                });
+
+                // Link to track position (Production URL)
+                const trackingLink = `https://luxuryos.pitayacode.io/q/${luxuryResult.qrToken}`;
+
+                await this.sendMessage(tenant.id, 'system', {
+                    to: from,
+                    content: `¡Listo ${customerName}! ✅\n\nTu turno es el *${luxuryResult.code}*.\n\n📱 Sigue tu lugar en la fila en tiempo real aquí:\n${trackingLink}\n\nTe avisaremos por este medio cuando sea tu turno. ¡Gracias por tu paciencia! 🙏`
+                });
+
+                // Reset state
+                await this.prisma.lead.update({
+                    where: { id: lead.id },
+                    data: { tags: { ...(lead.tags as any), queue_state: 'IDLE' } }
+                });
+
+            } catch (error) {
+                this.logger.error(`[Queue Skill] Failed to create Luxury ticket: ${error.message}`);
+                await this.sendMessage(tenant.id, 'system', {
+                    to: from,
+                    content: 'Lo siento, hubo un error al generar tu turno. Por favor, inténtalo de nuevo en unos minutos o acércate al mostrador.'
+                });
+            }
+            return true;
+        }
+
+        return false;
+    }
+
+    private async sendQueueKindMenu(tenantId: string, to: string, name: string) {
+        const message = `Gracias ${name}. ¿Qué vienes a hacer hoy?\n\n` +
+            `1. 🛒 *Comprar*\n` +
+            `2. 🛠️ *Reparar*\n` +
+            `3. 📦 *Recoger*`;
+
+        await this.sendMessage(tenantId, 'system', {
+            to,
+            content: message
+        });
+    }
+
+    private async createLuxuryTicket(tenantId: string, data: { customerName: string, customerPhone: string, kind: string }) {
+        // LuxuryOS API URL (Production URL in Hetzner)
+        const luxuryApiUrl = 'https://luxury-api.pitayacode.io/queue/tickets';
+        
+        // We'll use the fixed tenant ID for LuxuryOS
+        const luxuryTenantId = '071ab28f-da33-4bf8-90ed-f8a1af880078'; 
+
+        const response = await firstValueFrom(this.httpService.post(luxuryApiUrl, {
+            customerName: data.customerName,
+            customerPhone: data.customerPhone,
+            kind: data.kind
+        }, {
+            headers: { 'x-tenant-id': luxuryTenantId },
+            timeout: 5000
+        }));
+
+        return response.data;
+    }
+
     private async handlePurchaseApproval(tenant: { id: string, slug: string }, msg: any, content: string): Promise<boolean> {
         const from = msg.from;
         const normalizedFrom = from.replace(/^521/, '52');
