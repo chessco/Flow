@@ -30,3 +30,6 @@ dist-ssr
 
 # Diagnostic and Scratch scripts
 api/scratch/
+
+# Deployment archives
+*.tar.gz

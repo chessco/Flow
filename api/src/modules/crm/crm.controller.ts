@@ -1,10 +1,10 @@
 import { Controller, Get, Post, Delete, Body, Param, UseGuards, Req, Query } from '@nestjs/common';
 import { CRMService } from './crm.service';
-import { AuthGuard } from '@nestjs/passport';
+import { CombinedAuthGuard } from '../../common/guards/combined-auth.guard';
 import { TenantGuard } from '../../common/guards/tenant.guard';
 
 @Controller('crm')
-@UseGuards(AuthGuard('jwt'), TenantGuard)
+@UseGuards(CombinedAuthGuard, TenantGuard)
 export class CRMController {
     constructor(private readonly crmService: CRMService) { }
 

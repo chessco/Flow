@@ -1,10 +1,11 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards, Request } from '@nestjs/common';
 import { KanbanService } from './kanban.service';
 import { TenantGuard } from '../../common/guards/tenant.guard';
+import { CombinedAuthGuard } from '../../common/guards/combined-auth.guard';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 
 @Controller('kanban')
-@UseGuards(TenantGuard)
+@UseGuards(CombinedAuthGuard, TenantGuard)
 export class KanbanController {
     constructor(
         private readonly kanbanService: KanbanService,

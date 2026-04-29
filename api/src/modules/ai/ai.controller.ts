@@ -1,13 +1,13 @@
 import { Controller, Get, Post, Body, Param, UseGuards, Req } from '@nestjs/common';
 import { AiService } from './ai.service';
 import { TenantGuard } from '../../common/guards/tenant.guard';
-import { AuthGuard } from '@nestjs/passport';
+import { CombinedAuthGuard } from '../../common/guards/combined-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UpdateAiConfigDto } from './dto/update-ai-config.dto';
 
 @Controller('ai')
-@UseGuards(TenantGuard)
+@UseGuards(CombinedAuthGuard, TenantGuard)
 export class AiController {
     constructor(private readonly aiService: AiService) { }
 
@@ -38,14 +38,14 @@ export class AiController {
     }
 
     @Get('config')
-    @UseGuards(AuthGuard('jwt'), RolesGuard)
+    @UseGuards(RolesGuard)
     @Roles('TENANT_ADMIN', 'SYSTEM_ADMIN')
     async getConfig() {
         return this.aiService.getFullConfig();
     }
 
     @Post('config')
-    @UseGuards(AuthGuard('jwt'), RolesGuard)
+    @UseGuards(RolesGuard)
     @Roles('TENANT_ADMIN', 'SYSTEM_ADMIN')
     async updateConfig(@Body() config: UpdateAiConfigDto) {
         return this.aiService.updateConfig(config);
@@ -82,7 +82,7 @@ export class AiController {
     }
 
     @Post('debug')
-    @UseGuards(AuthGuard('jwt'), RolesGuard)
+    @UseGuards(RolesGuard)
     @Roles('TENANT_ADMIN', 'SYSTEM_ADMIN')
     async debugAi(@Body() body: { systemPrompt: string; userPrompt: string; model?: string }) {
         return this.aiService.generateDebugResponse(
