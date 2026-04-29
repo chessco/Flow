@@ -1,6 +1,7 @@
 # Logs
 logs
 *.log
+ngrok*
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -33,3 +34,6 @@ api/scratch/
 
 # Deployment archives
 *.tar.gz
+
+# Config backups and temporary files
+*.fixed

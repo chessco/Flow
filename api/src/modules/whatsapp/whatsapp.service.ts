@@ -525,7 +525,8 @@ export class WhatsappService {
                                 {
                                     userId: from,
                                     content: content,
-                                    externalId: wamid
+                                    externalId: wamid,
+                                    skills: skills
                                 },
                                 {
                                     headers: {

@@ -15,7 +15,7 @@ export const WhatsAppSettings: React.FC = () => {
         verifyToken: '',
         tenantName: '',
         tenantSlug: '',
-        skills: { sales: false, purchase_approval: false, queue_management: false },
+        skills: { sales: false, purchase_approval: false, queue_management: false, don_juan_camaron: false },
         allTenants: [] as any[]
     });
     const [loading, setLoading] = useState(true);
@@ -80,7 +80,7 @@ export const WhatsAppSettings: React.FC = () => {
     return (
         <div className="p-8 max-w-2xl mx-auto">
             <div className="mb-8">
-                <h1 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">Configuración de WhatsApp</h1>
+                <h1 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">Configuración de WhatsApp <span className="text-[10px] opacity-30">v1.1-DJC</span></h1>
                 <p className="text-slate-500 dark:text-slate-400">Gestiona las credenciales de tu API de WhatsApp Cloud y las habilidades activas de tu instancia.</p>
             </div>
 
@@ -126,6 +126,9 @@ export const WhatsAppSettings: React.FC = () => {
                         )}
                         {settings.skills?.queue_management && (
                             <span className="px-2 py-1 bg-purple-100 text-purple-700 text-[10px] font-bold rounded-full uppercase">Skill: Turnos</span>
+                        )}
+                        {settings.skills?.don_juan_camaron && (
+                            <span className="px-2 py-1 bg-orange-100 text-orange-700 text-[10px] font-bold rounded-full uppercase">Skill: Don Juan</span>
                         )}
                     </div>
                 </div>
@@ -267,6 +270,23 @@ export const WhatsAppSettings: React.FC = () => {
                             <div className="ml-3">
                                 <span className="block text-sm font-medium text-slate-700 dark:text-slate-300">Fila y Turnos (Queue)</span>
                                 <span className="block text-xs text-slate-500">Permite gestionar turnos y filas de espera integradas con LuxuryOS.</span>
+                            </div>
+                        </label>
+
+                        <label className="flex items-center cursor-pointer group">
+                            <input
+                                type="checkbox"
+                                checked={settings.skills?.don_juan_camaron}
+                                onChange={(e) => setSettings({
+                                    ...settings,
+                                    skills: { ...settings.skills, don_juan_camaron: e.target.checked }
+                                })}
+                                disabled={!canModifySettings}
+                                className="w-4 h-4 text-orange-600 border-slate-300 rounded focus:ring-orange-500"
+                            />
+                            <div className="ml-3">
+                                <span className="block text-sm font-medium text-slate-700 dark:text-slate-300">Don Juan Camarón (AI Expert)</span>
+                                <span className="block text-xs text-slate-500">Activa el asesor experto en acuacultura conectado directamente con AcuaCore.</span>
                             </div>
                         </label>
                     </div>
