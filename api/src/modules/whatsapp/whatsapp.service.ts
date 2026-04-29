@@ -510,64 +510,38 @@ export class WhatsappService {
                         }
                     });
 
-                    // AI Autonomous Response Logic
-                    if (updatedConversation.aiManaged) {
-                        this.logger.log(`Conversation ${conversation.id} is AI managed. Generating response...`);
-
-                        // If it was a payment, we might want to inject a special instruction
-                        const isPaymentImage = type === 'IMAGE' && await this.aiService.analyzeImageForPayment(content);
-                        const aiResponse = await this.aiService.generateAutonomousResponse(
-                            tenantId,
-                            conversation.id,
-                            isPaymentImage ? 'INSTRUCCIÃ“N: Se ha recibido un comprobante de pago. DEBES agradecer al usuario y SOLICITAR SU CORREO ELECTRÃ“NICO para enviar el paquete digital.' : undefined
-                        );
-
-                        if (aiResponse) {
-                            // 1. Handle Stage Transitions
-                            if (aiResponse.suggestedStageName) {
-                                await this.executeStageTransition(tenantId, conversation.id, aiResponse.suggestedStageName);
-                            } else if (isPaymentImage) {
-                                // Fallback for payment if AI didn't suggest it explicitly
-                                await this.executeStageTransition(tenantId, conversation.id, 'Pago por Verificar');
-                            }
-
-                            // 2. Handle Handover
-                            if (aiResponse.handoverRequired) {
-                                this.logger.log(`Handover required for conversation ${conversation.id}. Reason: ${aiResponse.handoverReason}`);
-
-                                // Create Alert
-                                await this.prisma.handoverAlert.create({
-                                    data: {
-                                        conversationId: conversation.id,
-                                        tenantId,
-                                        reason: aiResponse.handoverReason || 'AI requested human intervention',
-                                        status: 'PENDING'
+                    // --- ACUACORE AGENT DELEGATION ---
+                    // Forward message to Acuacore to handle AI agents and Inbox
+                    try {
+                        const acuacoreApiUrl = process.env.ACUACORE_API_URL || 'http://localhost:3014';
+                        const internalKey = process.env.INTERNAL_API_KEY || 'pitaya_internal_dev_key';
+                        
+                        this.logger.log(`Forwarding message from ${from} to Acuacore for AI processing...`);
+                        
+                        // Fire and forget to avoid lagging the webhook response
+                        firstValueFrom(
+                            this.httpService.post(
+                                `${acuacoreApiUrl}/api/webhooks/flow/incoming`, 
+                                {
+                                    userId: from,
+                                    content: content,
+                                    externalId: wamid
+                                },
+                                {
+                                    headers: {
+                                        'x-tenant-id': tenantId,
+                                        'x-internal-key': internalKey
                                     }
-                                });
-
-                                // Disable AI Autonomous mode
-                                await this.prisma.conversation.update({
-                                    where: { id: conversation.id },
-                                    data: { aiManaged: false }
-                                });
-                            }
-
-                            // 3. Send AI response to WhatsApp if content exists
-                            if (aiResponse.content) {
-                                await this.sendInternalAiMessage(tenantId, conversation.id, from, aiResponse.content);
-                            }
-                        }
-                    } else {
-                        // Not AI managed, but we still want to detect prices/budgets proactively
-                        // Trigger analysis if message contains numbers or is an image
-                        if (type === 'IMAGE' || (type === 'TEXT' && /[0-9]/.test(content))) {
-                            this.logger.log(`Triggering background AI analysis for extraction (Potential price/payment) - Conv ${conversation.id}`);
-                            // Fire and forget to avoid lagging the webhook response
-                            this.aiService.analyzeContext(conversation.id).catch(err =>
-                                this.logger.error(`Background analysis failed: ${err.message}`)
-                            );
-                        }
+                                }
+                            )
+                        ).catch(err => {
+                            this.logger.error(`Failed to forward message to Acuacore: ${err.message}`);
+                        });
+                        
+                    } catch (forwardErr) {
+                        this.logger.error(`Error during Acuacore forwarding: ${forwardErr.message}`);
                     }
+                    // ---------------------------------
                 } catch (msgError) {
                     this.logger.error(`Error processing individual message: ${msgError.message}`);
                 }
