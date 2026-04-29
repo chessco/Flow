@@ -20,14 +20,16 @@ async function bootstrap() {
         'https://flow.pitayacode.io',
         'https://www.flow.pitayacode.io',
         'http://localhost:3000',
-        'http://localhost:5173'
+        'http://localhost:5173',
+        'http://localhost:3014',
+        'http://localhost:3003'
     ];
 
     app.enableCors({
         origin: origins,
         methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
         credentials: true,
-        allowedHeaders: 'Content-Type, Accept, Authorization, x-internal-key, x-tenant-slug, x-tenant-id',
+        allowedHeaders: 'Content-Type, Accept, Authorization, x-internal-key, x-tenant-slug, x-tenant-id, x-api-key',
     });
 
     const port = configService.get<number>('PORT') || 3001;

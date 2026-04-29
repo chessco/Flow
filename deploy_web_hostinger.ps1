@@ -29,11 +29,11 @@ try {
 
     # 3. Subir a Hostinger
     Write-Host "Step 3: Subiendo a Hostinger ($SSH_HOST)..." -ForegroundColor Yellow
-    scp -P $SSH_PORT -i $SSH_KEY web_deploy.tar.gz "${SSH_USER}@${SSH_HOST}:${REMOTE_PATH}/"
+    scp -P $SSH_PORT -i $SSH_KEY -o StrictHostKeyChecking=no web_deploy.tar.gz "${SSH_USER}@${SSH_HOST}:${REMOTE_PATH}/"
 
     # 4. Extraer en el servidor
     Write-Host "Step 4: Extrayendo archivos en el servidor..." -ForegroundColor Yellow
-    ssh -p $SSH_PORT -i $SSH_KEY "${SSH_USER}@${SSH_HOST}" "mkdir -p ${REMOTE_PATH} && cd ${REMOTE_PATH} && tar -xzf web_deploy.tar.gz && rm web_deploy.tar.gz"
+    ssh -p $SSH_PORT -i $SSH_KEY -o StrictHostKeyChecking=no "${SSH_USER}@${SSH_HOST}" "mkdir -p ${REMOTE_PATH} && cd ${REMOTE_PATH} && tar -xzf web_deploy.tar.gz && rm web_deploy.tar.gz"
 
     Write-Host "--- DESPLIEGUE WEB COMPLETADO CON EXITO ---" -ForegroundColor Green
 }

@@ -3,7 +3,7 @@ import { Response } from 'express';
 import { WhatsappService } from './whatsapp.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { TenantGuard } from '../../common/guards/tenant.guard';
-import { AuthGuard } from '@nestjs/passport';
+import { ApiKeyGuard } from '../../common/guards/api-key.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 
@@ -12,8 +12,7 @@ export class WhatsappController {
     constructor(private readonly whatsappService: WhatsappService) { }
 
     @Post('send')
-    @Post('send')
-    @UseGuards(AuthGuard('jwt'), TenantGuard)
+    @UseGuards(ApiKeyGuard, TenantGuard)
     async sendMessage(@Req() req: any, @Body() sendMessageDto: SendMessageDto) {
         const tenantId = req.tenantId;
         const userId = req.user?.userId || 'system';
@@ -21,14 +20,14 @@ export class WhatsappController {
     }
 
     @Get('conversations')
-    @UseGuards(AuthGuard('jwt'), TenantGuard)
+    @UseGuards(ApiKeyGuard, TenantGuard)
     async getConversations(@Req() req: any) {
         console.log(`[WhatsappController] Getting conversations for tenant: ${req.tenantId}`);
         return this.whatsappService.getConversations(req.tenantId);
     }
 
     @Get('history/:id')
-    @UseGuards(AuthGuard('jwt'), TenantGuard)
+    @UseGuards(ApiKeyGuard, TenantGuard)
     async getHistory(@Req() req: any, @Param('id') id: string) {
         // Note: NestJS allows getting id from @Param('id') but the api.ts uses it differently?
         // Let's use @Param if it's in the path
@@ -36,14 +35,14 @@ export class WhatsappController {
     }
 
     @Get('settings')
-    @UseGuards(AuthGuard('jwt'), RolesGuard, TenantGuard)
+    @UseGuards(ApiKeyGuard, RolesGuard, TenantGuard)
     @Roles('TENANT_ADMIN')
     async getSettings(@Req() req: any) {
         return this.whatsappService.getSettings(req.tenantId, req.user);
     }
 
     @Post('settings')
-    @UseGuards(AuthGuard('jwt'), RolesGuard, TenantGuard)
+    @UseGuards(ApiKeyGuard, RolesGuard, TenantGuard)
     @Roles('TENANT_ADMIN')
     async updateSettings(@Body() dto: any, @Req() req: any) {
         return this.whatsappService.updateSettings(req.tenantId, dto);
@@ -76,7 +75,7 @@ export class WhatsappController {
         });
     }
 
-    @UseGuards(AuthGuard('jwt'), TenantGuard)
+    @UseGuards(ApiKeyGuard, TenantGuard)
     @Post('conversation/:id/status')
     async updateStatus(@Req() req: any, @Param('id') id: string, @Body() body: { status: string }) {
         return this.whatsappService.updateConversationStatus(id, req.tenantId, body.status);
