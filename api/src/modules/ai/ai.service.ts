@@ -23,7 +23,7 @@ export interface AiConfig {
 export class AiService {
     private readonly logger = new Logger(AiService.name);
     private client: any; // GoogleGenAI instance
-    private modelName: string = 'gemini-2.5-flash-lite'; // Default model <!-- id: 1858 -->
+    private modelName: string = 'gemini-1.5-flash'; // Default model <!-- id: 1858 -->
     private systemPrompt: string = '';
     private readonly configPath = path.join(process.cwd(), 'ai-config.json');
     private readonly algorithm = 'aes-256-ctr';
@@ -61,7 +61,7 @@ export class AiService {
             // Since I cannot check docs, I will assume the standard `apiVersion` or try to stick to the 'models/' prefix behavior if implicit.
 
             this.client = new GoogleGenAI({ apiKey: apiKey });
-            this.modelName = this.getFullConfig().model || 'gemini-2.5-flash-lite';
+            this.modelName = this.getFullConfig().model || 'gemini-1.5-flash';
             this.logger.log(`AI Service initialized with @google/genai SDK with model: ${this.modelName}`);
         } catch (error) {
             this.logger.error(`Failed to initialize AI: ${error.message}`);
@@ -180,7 +180,7 @@ export class AiService {
         return {
             apiKey: this.configService.get<string>('GOOGLE_AI_API_KEY') || null,
             provider: 'GEMINI',
-            model: 'gemini-2.5-flash-lite'
+            model: 'gemini-1.5-flash'
         } as any;
     }
 

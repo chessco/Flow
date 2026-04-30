@@ -10,3 +10,7 @@ yarn-error.log*
 **/.env*
 **/*.env*
 !.env.example
+
+# Sensitive runtime configs
+ai-config.json
+scratch/

@@ -12,7 +12,9 @@ import { Logger } from '@nestjs/common';
 
 @WebSocketGateway({
     cors: {
-        origin: '*',
+        origin: true, // Refleja el origen de la petición (necesario para credentials: true)
+        credentials: true,
+        allowedHeaders: 'Content-Type, Accept, Authorization, x-internal-key, x-tenant-slug, x-tenant-id, x-api-key',
     },
 })
 export class AppGateway implements OnGatewayConnection, OnGatewayDisconnect {

@@ -3,12 +3,16 @@ import * as crypto from 'crypto';
 
 async function main() {
   const prisma = new PrismaClient();
-  const tenantId = 'edd1ac37-5ff9-4e46-bc7f-fff3c414d718';
+  const tenantId = process.env.TENANT_ID || 'edd1ac37-5ff9-4e46-bc7f-fff3c414d718';
   
-  // From .env
-  const envToken = "EAA6q6nIZAcZAQBRfDV7Wuj7OsKgSmeMtlrbnm7KSOAZCe58dQO8dVLhfg4tZAyZB9QRoFnR9aYsRsrBueWfCIVd5iptZCt7Xwl23LCyhFHfALVPfO7buNaSslqDUTZCpipNuX70Qi19UYCoQ0F3tLwc8PoK9elLK8Njlowj4v8JDkKLiVbERhqbiJikZA9eb1zrwWglLA2HRdCNsni3QRLtgmZBKak2zPr7UoETTA3zfZCQQ7jRnlkK6zQVUGldEVGB8dF2KQbKW7oLrEfFSFQ1QZDZD";
+  // Read token from environment variable — NEVER hardcode tokens
+  const envToken = process.env.WHATSAPP_ACCESS_TOKEN;
+  if (!envToken) {
+    console.error('ERROR: Set WHATSAPP_ACCESS_TOKEN environment variable before running this script.');
+    process.exit(1);
+  }
   
-  const rawKey = 'pitaya_default_encryption_key_32';
+  const rawKey = process.env.ENCRYPTION_KEY || 'pitaya_default_encryption_key_32';
   const secretKey = crypto.createHash('sha256').update(rawKey).digest();
   const algorithm = 'aes-256-ctr';
 

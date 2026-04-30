@@ -511,36 +511,40 @@ export class WhatsappService {
                     });
 
                     // --- ACUACORE AGENT DELEGATION ---
-                    // Forward message to Acuacore to handle AI agents and Inbox
-                    try {
-                        const acuacoreApiUrl = process.env.ACUACORE_API_URL || 'http://localhost:3014';
-                        const internalKey = process.env.INTERNAL_API_KEY || 'pitaya_internal_dev_key';
-                        
-                        this.logger.log(`Forwarding message from ${from} to Acuacore for AI processing...`);
-                        
-                        // Fire and forget to avoid lagging the webhook response
-                        firstValueFrom(
-                            this.httpService.post(
-                                `${acuacoreApiUrl}/api/webhooks/flow/incoming`, 
-                                {
-                                    userId: from,
-                                    content: content,
-                                    externalId: wamid,
-                                    skills: skills
-                                },
-                                {
-                                    headers: {
-                                        'x-tenant-id': tenantId,
-                                        'x-internal-key': internalKey
+                    // Only forward to AcuaCore if Don Juan Camarón (AI Expert) is enabled
+                    if (skills.don_juan_camaron) {
+                        try {
+                            const acuacoreApiUrl = process.env.ACUACORE_API_URL || 'http://localhost:3014';
+                            const internalKey = process.env.INTERNAL_API_KEY || 'pitaya_internal_dev_key';
+                            
+                            this.logger.log(`[Skill Router] Don Juan active — Forwarding message from ${from} to Acuacore...`);
+                            
+                            // Fire and forget to avoid lagging the webhook response
+                            firstValueFrom(
+                                this.httpService.post(
+                                    `${acuacoreApiUrl}/api/webhooks/flow/incoming`, 
+                                    {
+                                        userId: from,
+                                        content: content,
+                                        externalId: wamid,
+                                        skills: skills
+                                    },
+                                    {
+                                        headers: {
+                                            'x-tenant-id': tenantId,
+                                            'x-internal-key': internalKey
+                                        }
                                     }
-                                }
-                            )
-                        ).catch(err => {
-                            this.logger.error(`Failed to forward message to Acuacore: ${err.message}`);
-                        });
-                        
-                    } catch (forwardErr) {
-                        this.logger.error(`Error during Acuacore forwarding: ${forwardErr.message}`);
+                                )
+                            ).catch(err => {
+                                this.logger.error(`Failed to forward message to Acuacore: ${err.message}`);
+                            });
+                            
+                        } catch (forwardErr) {
+                            this.logger.error(`Error during Acuacore forwarding: ${forwardErr.message}`);
+                        }
+                    } else {
+                        this.logger.log(`[Skill Router] Don Juan DISABLED — Message from ${from} stays in Flow only.`);
                     }
                     // ---------------------------------
                 } catch (msgError) {
