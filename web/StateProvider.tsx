@@ -149,6 +149,13 @@ export const StateProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         return current;
     }, [language]);
 
+    const handleApiError = useCallback((error: any) => {
+        if (error.status === 401) {
+            console.error('Session expired or unauthorized. Logging out...');
+            logout();
+        }
+    }, [logout]);
+
     const DEFAULT_TENANT_ID = 'edd1ac37-5ff9-4e46-bc7f-fff3c414d718';
 
     const fetchKanbanData = useCallback(async () => {
@@ -185,6 +192,7 @@ export const StateProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             }
         } catch (error) {
             console.error('Failed to fetch Kanban data:', error);
+            handleApiError(error);
         }
     }, []);
 
@@ -207,6 +215,7 @@ export const StateProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             setTasks(mapped);
         } catch (error) {
             console.error('Failed to fetch tasks:', error);
+            handleApiError(error);
         }
     }, []);
 
@@ -262,6 +271,7 @@ export const StateProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             await fetchKanbanData();
         } catch (error) {
             console.error('Failed to load contacts:', error);
+            handleApiError(error);
         }
     }, [isAuthenticated, fetchTasks, fetchKanbanData]);
 
@@ -346,7 +356,7 @@ export const StateProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                         setSuggestions([]);
                     }
                 } catch (error) {
-                    // Silently fail
+                    handleApiError(error);
                 }
             };
 
@@ -589,6 +599,7 @@ export const StateProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             setHandoverAlerts(alerts);
         } catch (error) {
             console.error('Failed to fetch handover alerts:', error);
+            handleApiError(error);
         }
     };
 
@@ -619,13 +630,6 @@ export const StateProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         try {
             const analysis = await api.ai.getRevenueAnalysis();
             setRevenueAnalysis(analysis);
-        } catch (error) {
-            console.error('Error fetching revenue analysis:', error);
-            setRevenueAnalysis({
-                summary: "Error de conexión con el servicio de IA.",
-                momentum: "ERROR",
-                error: error.message
-            });
         } finally {
             setIsRevenueLoading(false);
         }
@@ -637,6 +641,7 @@ export const StateProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             setAiStatus(status);
         } catch (error) {
             console.error('Error fetching AI status:', error);
+            handleApiError(error);
         }
     };
 

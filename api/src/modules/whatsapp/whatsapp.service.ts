@@ -95,7 +95,7 @@ export class WhatsappService {
                         type: (dto as any).imageUrl ? 'image' : 'text',
                         [(dto as any).imageUrl ? 'image' : 'text']: (dto as any).imageUrl 
                             ? { link: (dto as any).imageUrl, caption: dto.content }
-                            : { preview_url: false, body: dto.content },
+                            : { preview_url: false, body: dto.content.length > 4000 ? dto.content.substring(0, 3997) + '...' : dto.content },
                     },
                     {
                         headers: {
@@ -514,10 +514,11 @@ export class WhatsappService {
                     // Only forward to AcuaCore if Don Juan Camarón (AI Expert) is enabled
                     if (skills.don_juan_camaron) {
                         try {
-                            const acuacoreApiUrl = process.env.ACUACORE_API_URL || 'http://localhost:3014';
+                            const acuacoreApiUrl = (skills.acuacoreApiUrl?.trim()) || process.env.ACUACORE_API_URL || 'http://localhost:3014';
                             const internalKey = process.env.INTERNAL_API_KEY || 'pitaya_internal_dev_key';
                             
-                            this.logger.log(`[Skill Router] Don Juan active — Forwarding message from ${from} to Acuacore...`);
+                            const agentSlug = skills.don_juan_camaron ? 'don-juan' : 'default';
+                            this.logger.log(`[Skill Router] Delegating to agent: ${agentSlug} for ${from}...`);
                             
                             // Fire and forget to avoid lagging the webhook response
                             firstValueFrom(
@@ -527,7 +528,9 @@ export class WhatsappService {
                                         userId: from,
                                         content: content,
                                         externalId: wamid,
-                                        skills: skills
+                                        skills: skills,
+                                        agentSlug: agentSlug,
+                                        channel: 'whatsapp'
                                     },
                                     {
                                         headers: {
@@ -797,7 +800,7 @@ export class WhatsappService {
                         recipient_type: 'individual',
                         to: cleanTo,
                         type: 'text',
-                        text: { preview_url: false, body: content },
+                        text: { preview_url: false, body: content.length > 4000 ? content.substring(0, 3997) + '...' : content },
                     },
                     {
                         headers: {

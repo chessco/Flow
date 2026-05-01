@@ -4,23 +4,20 @@ import { ApiKeyGuard } from './api-key.guard';
 import { firstValueFrom, isObservable } from 'rxjs';
 
 @Injectable()
-export class CombinedAuthGuard implements CanActivate {
+export class CombinedAuthGuard extends AuthGuard('jwt') {
   private readonly logger = new Logger(CombinedAuthGuard.name);
-  private jwtGuard: CanActivate;
 
   constructor(
     private readonly apiKeyGuard: ApiKeyGuard,
   ) {
-    // Create an instance of the JWT AuthGuard
-    const JwtGuardClass = AuthGuard('jwt');
-    this.jwtGuard = new JwtGuardClass();
+    super();
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
     const url = request.url;
     
-    // 1. Try API Key authentication first
+    // 1. Try API Key authentication first (for bridge/internal calls)
     try {
       const isApiKeyValid = await this.apiKeyGuard.canActivate(context);
       if (isApiKeyValid) {
@@ -31,26 +28,16 @@ export class CombinedAuthGuard implements CanActivate {
       this.logger.error(`API Key validation error: ${error.message}`);
     }
 
-    // 2. Try JWT authentication
+    // 2. Try JWT authentication (standard user session)
     try {
-      const result = this.jwtGuard.canActivate(context);
+      const result = await super.canActivate(context);
       
-      let canActivateJwt: boolean;
-      if (typeof result === 'boolean') {
-        canActivateJwt = result;
-      } else if (isObservable(result)) {
-        canActivateJwt = await firstValueFrom(result);
-      } else {
-        canActivateJwt = await result;
+      if (result) {
+        this.logger.debug(`Authenticated via JWT for ${url}. User: ${request.user ? request.user.email : 'system'}`);
+        return true;
       }
-
-      if (!canActivateJwt) {
-        this.logger.warn(`JWT validation failed for ${url} (returned false)`);
-        throw new UnauthorizedException('Authentication failed');
-      }
-
-      this.logger.debug(`Authenticated via JWT for ${url}. User: ${request.user ? request.user.email : 'MISSING'}`);
-      return true;
+      
+      return false;
     } catch (error) {
       const authHeader = request.headers['authorization'];
       this.logger.warn(`JWT validation failed for ${url}: ${error.message}. Auth Header: ${authHeader ? 'Present' : 'Missing'}`);

@@ -15,7 +15,13 @@ export const WhatsAppSettings: React.FC = () => {
         verifyToken: '',
         tenantName: '',
         tenantSlug: '',
-        skills: { sales: false, purchase_approval: false, queue_management: false, don_juan_camaron: false },
+        skills: { 
+            sales: false, 
+            purchase_approval: false, 
+            queue_management: false, 
+            don_juan_camaron: false,
+            acuacoreApiUrl: '' 
+        },
         allTenants: [] as any[]
     });
     const [loading, setLoading] = useState(true);
@@ -118,18 +124,23 @@ export const WhatsAppSettings: React.FC = () => {
                         </div>
                     </div>
                     <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2 justify-end">
+                        {settings.skills?.don_juan_camaron && (
+                            <span className="px-2 py-1 bg-orange-100 text-orange-700 text-[10px] font-bold rounded-md border border-orange-200 uppercase flex items-center gap-1">
+                                <span className="material-symbols-outlined text-[12px]">smart_toy</span>
+                                Agente: Don Juan
+                            </span>
+                        )}
                         {settings.skills?.sales && (
-                            <span className="px-2 py-1 bg-green-100 text-green-700 text-[10px] font-bold rounded-full uppercase">Skill: Ventas</span>
+                            <span className="px-2 py-1 bg-green-100 text-green-700 text-[10px] font-bold rounded-md border border-green-200 uppercase">Skill: Ventas</span>
                         )}
                         {settings.skills?.purchase_approval && (
-                            <span className="px-2 py-1 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-full uppercase">Skill: Aprobaciones</span>
+                            <span className="px-2 py-1 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-md border border-blue-200 uppercase">Skill: Aprobaciones</span>
                         )}
                         {settings.skills?.queue_management && (
-                            <span className="px-2 py-1 bg-purple-100 text-purple-700 text-[10px] font-bold rounded-full uppercase">Skill: Turnos</span>
+                            <span className="px-2 py-1 bg-purple-100 text-purple-700 text-[10px] font-bold rounded-md border border-purple-200 uppercase">Skill: Turnos</span>
                         )}
-                        {settings.skills?.don_juan_camaron && (
-                            <span className="px-2 py-1 bg-orange-100 text-orange-700 text-[10px] font-bold rounded-full uppercase">Skill: Don Juan</span>
-                        )}
+                    </div>
                     </div>
                 </div>
             </div>
@@ -216,10 +227,63 @@ export const WhatsAppSettings: React.FC = () => {
                     </div>
                 </div>
 
+                {/* SECCIÓN 1: AGENTES INTELIGENTES (PERSONAS) */}
+                <div className="p-4 bg-orange-50 dark:bg-orange-900/10 rounded-lg border border-orange-100 dark:border-orange-900/30">
+                    <h3 className="text-sm font-bold text-orange-800 dark:text-orange-300 mb-3 flex items-center">
+                        <span className="material-symbols-outlined text-sm mr-1">smart_toy</span>
+                        Agentes Inteligentes (AI Personas)
+                    </h3>
+                    <div className="space-y-3">
+                        <label className="flex items-center cursor-pointer group">
+                            <input
+                                type="checkbox"
+                                checked={settings.skills?.don_juan_camaron}
+                                onChange={(e) => setSettings({
+                                    ...settings,
+                                    skills: { ...settings.skills, don_juan_camaron: e.target.checked }
+                                })}
+                                disabled={!canModifySettings}
+                                className="w-4 h-4 text-orange-600 border-slate-300 rounded focus:ring-orange-500"
+                            />
+                            <div className="ml-3 flex-1">
+                                <span className="block text-sm font-bold text-slate-700 dark:text-slate-300">Don Juan Camarón</span>
+                                <span className="block text-xs text-slate-500">Asesor experto en acuacultura con personalidad senior y técnica.</span>
+                                
+                                {settings.skills?.don_juan_camaron && (
+                                    <div className="mt-3 p-3 bg-white dark:bg-black/20 rounded border border-orange-200 dark:border-orange-800/50 shadow-inner">
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-orange-600 mb-1">URL de API AcuaCore</label>
+                                        <div className="flex gap-2">
+                                            <input 
+                                                type="text"
+                                                placeholder="https://su-ngrok.dev"
+                                                value={settings.skills?.acuacoreApiUrl || ''}
+                                                onChange={(e) => setSettings({
+                                                    ...settings,
+                                                    skills: { ...settings.skills, acuacoreApiUrl: e.target.value.trim() }
+                                                })}
+                                                className="flex-1 text-xs font-mono p-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded outline-none focus:ring-1 focus:ring-orange-500"
+                                            />
+                                            <div className="flex items-center px-2 bg-slate-200 dark:bg-slate-800 rounded text-[10px] font-bold text-slate-500">
+                                                /api/webhooks...
+                                            </div>
+                                        </div>
+                                        <p className="mt-1 text-[9px] text-slate-400 italic">Endpoint donde Flow enviará los mensajes para que la IA los procese.</p>
+                                    </div>
+                                )}
+                            </div>
+                        </label>
+                        {/* Aquí se pueden añadir más agentes en el futuro */}
+                        <div className="pt-2 border-t border-orange-100 dark:border-orange-900/20">
+                           <p className="text-[10px] text-orange-600/50 uppercase font-black tracking-widest">Próximamente: Conectar nuevos agentes de AcuaCore</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* SECCIÓN 2: HABILIDADES FUNCIONALES */}
                 <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
-                    <h3 className="text-sm font-medium text-slate-800 dark:text-slate-200 mb-3 flex items-center">
+                    <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-3 flex items-center">
                         <span className="material-symbols-outlined text-sm mr-1">bolt</span>
-                        Habilidades Activas (Skills)
+                        Habilidades del Sistema (Skills)
                     </h3>
                     <div className="space-y-3">
                         <label className="flex items-center cursor-pointer group">
@@ -270,23 +334,6 @@ export const WhatsAppSettings: React.FC = () => {
                             <div className="ml-3">
                                 <span className="block text-sm font-medium text-slate-700 dark:text-slate-300">Fila y Turnos (Queue)</span>
                                 <span className="block text-xs text-slate-500">Permite gestionar turnos y filas de espera integradas con LuxuryOS.</span>
-                            </div>
-                        </label>
-
-                        <label className="flex items-center cursor-pointer group">
-                            <input
-                                type="checkbox"
-                                checked={settings.skills?.don_juan_camaron}
-                                onChange={(e) => setSettings({
-                                    ...settings,
-                                    skills: { ...settings.skills, don_juan_camaron: e.target.checked }
-                                })}
-                                disabled={!canModifySettings}
-                                className="w-4 h-4 text-orange-600 border-slate-300 rounded focus:ring-orange-500"
-                            />
-                            <div className="ml-3">
-                                <span className="block text-sm font-medium text-slate-700 dark:text-slate-300">Don Juan Camarón (AI Expert)</span>
-                                <span className="block text-xs text-slate-500">Activa el asesor experto en acuacultura conectado directamente con AcuaCore.</span>
                             </div>
                         </label>
                     </div>

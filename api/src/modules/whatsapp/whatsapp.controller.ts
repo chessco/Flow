@@ -59,7 +59,14 @@ export class WhatsappController {
 
     @Post('webhook')
     async handleWebhook(@Body() payload: any) {
-        console.log('[Webhook Debug] Raw Payload:', JSON.stringify(payload, null, 2));
+        const now = new Date().toISOString();
+        console.log(`[${now}] [Webhook Received] Payload size: ${JSON.stringify(payload).length} chars`);
+        if (payload.object) {
+            console.log(`[Webhook Debug] Object: ${payload.object} | Entries: ${payload.entry?.length}`);
+        } else {
+            console.log('[Webhook Debug] Raw Payload:', JSON.stringify(payload, null, 2));
+        }
+        
         // Los webhooks no llevan TenantGuard porque vienen de Meta
         return this.whatsappService.handleWebhook(payload);
     }

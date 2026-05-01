@@ -37,7 +37,11 @@ class PitayaAPI {
         const response = await fetch(`${API_BASE_URL}${endpoint}`, {
             headers: this.getHeaders(),
         });
-        if (!response.ok) throw new Error('API Error');
+        if (!response.ok) {
+            const error = new Error('API Error');
+            (error as any).status = response.status;
+            throw error;
+        }
         const text = await response.text();
         return text ? JSON.parse(text) : null;
     }
@@ -66,7 +70,9 @@ class PitayaAPI {
         });
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ message: 'API Error' }));
-            throw new Error(errorData.message || 'API Error');
+            const error = new Error(errorData.message || 'API Error');
+            (error as any).status = response.status;
+            throw error;
         }
         const text = await response.text();
         return text ? JSON.parse(text) : null;
@@ -80,7 +86,9 @@ class PitayaAPI {
         });
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ message: 'API Error' }));
-            throw new Error(errorData.message || 'API Error');
+            const error = new Error(errorData.message || 'API Error');
+            (error as any).status = response.status;
+            throw error;
         }
         const text = await response.text();
         return text ? JSON.parse(text) : null;
@@ -92,7 +100,11 @@ class PitayaAPI {
             headers: this.getHeaders(),
             body: JSON.stringify({}) // Some APIS need body even for delete
         });
-        if (!response.ok) throw new Error('API Error');
+        if (!response.ok) {
+            const error = new Error('API Error');
+            (error as any).status = response.status;
+            throw error;
+        }
         const text = await response.text();
         return text ? JSON.parse(text) : null;
     }
